@@ -7,6 +7,10 @@ const firebaseConfig = {
     authDomain: "viaz-1e406.firebaseapp.com",
     databaseURL: "https://viaz-1e406-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "viaz-1e406",
+    storageBucket: "viaz-1e406.firebasestorage.app",
+    messagingSenderId: "73407200033",
+    appId: "1:73407200033:web:0fd45cbe87500fb4645c60",
+    measurementId: "G-26YTWXHSTY"
 };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
