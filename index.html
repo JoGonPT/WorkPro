@@ -23,7 +23,37 @@
         </div>
     </div>
 
-    <div class="app-container">
+    <!-- AUTH SCREEN (LOGIN) -->
+    <div id="auth-screen" class="auth-overlay">
+        <div class="auth-box">
+            <h1 class="view-title">Work Pro</h1>
+            <p class="view-subtitle" style="margin-bottom: 30px;">Login Profissional</p>
+            <div class="input-group">
+                <input type="email" id="auth-email" placeholder="Email">
+                <input type="password" id="auth-pass" placeholder="Palavra-passe">
+            </div>
+            <button class="primary-btn" onclick="handleAuth('login')">ENTRAR</button>
+            <button class="secondary-btn" style="margin-top: 15px;" onclick="handleAuth('signup')">Criar Conta Nova</button>
+        </div>
+    </div>
+
+    <!-- PERSISTENT ALERTA BANNER -->
+    <div id="sticky-alert" class="persistent-banner" style="display: none; background: var(--accent-red); color: #fff;">
+        <div class="banner-content">
+            <span class="banner-icon">🚨</span>
+            <div class="banner-text">
+                <span id="alert-msg">Serviço em 4 Horas!</span>
+            </div>
+            <button class="banner-btn" id="confirm-presence" style="background: #fff; color: #000;">CONFIRMAR</button>
+        </div>
+    </div>
+
+    <div class="app-container" id="app-shell" style="display: none;">
+        <!-- User Badge -->
+        <div class="user-status-bar">
+            <span id="user-display">--</span>
+            <button onclick="logout()" style="background:none; border:none; color:var(--accent); font-weight:600;">Sair</button>
+        </div>
         <!-- Main Scrollable Content -->
         <main class="main-content">
             
@@ -98,9 +128,21 @@
                     </div>
                     <button id="save-btn" class="primary-btn">SALVAR NO FIREBASE</button>
 
-                    <div class="archive-access" style="margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
-                        <button class="secondary-btn" data-target="view-archive" onclick="navigate('view-archive')">📁 VER ARQUIVO (60 DIAS)</button>
+                     <div class="archive-access" style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
+                        <button class="secondary-btn" onclick="navigate('view-inbox')">📥 CAIXA DE ENTRADA (INBOX)</button>
+                        <button class="secondary-btn" style="margin-top:10px;" onclick="navigate('view-archive')">📁 VER ARQUIVO (60 DIAS)</button>
                     </div>
+                </div>
+            </section>
+
+            <!-- VIEW: INBOX (Convites) -->
+            <section id="view-inbox" class="spa-view">
+                <header class="view-header">
+                    <h1 class="view-title">Inbox</h1>
+                    <p class="view-subtitle">Convites pendentes (Fist-come, first-served)</p>
+                </header>
+                <div id="inbox-list" class="list-container">
+                    <!-- Convites JS -->
                 </div>
             </section>
 
@@ -128,6 +170,9 @@
             </button>
             <button class="tab-item" data-target="view-month">
                 <span class="icon">🗓️</span><span class="label">Mês</span>
+            </button>
+            <button class="tab-item" data-target="view-inbox">
+                <span class="icon">📥</span><span class="label">Inbox</span>
             </button>
             <button class="tab-item" data-target="view-admin">
                 <span class="icon">🔨</span><span class="label">Gestão</span>
