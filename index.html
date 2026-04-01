@@ -60,9 +60,12 @@
             
             <!-- VIEW: HOJE -->
             <section id="view-today" class="tab-content active">
-                <header class="view-header">
-                    <h1 class="view-title">Hoje</h1>
-                    <span id="current-date" class="view-subtitle">Carregando...</span>
+                <header class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <h1 class="view-title">Hoje</h1>
+                        <span id="current-date" class="view-subtitle">Carregando...</span>
+                    </div>
+                    <button class="close-btn" onclick="showSection('view-admin')" title="Criar Serviço">➕</button>
                 </header>
                 <div id="today-list" class="list-container">
                     <!-- Eventos do Dia JS -->
@@ -97,11 +100,21 @@
                 </div>
             </section>
 
-            <!-- VIEW: GESTÃO (Admin Integrado) -->
+            <!-- VIEW: TAREFAS (Sem Data/Hora) -->
+            <section id="view-tasks" class="tab-content">
+                <header class="view-header">
+                    <h1 class="view-title">Tarefas</h1>
+                    <p class="view-subtitle">Afazeres pendentes sem data definida</p>
+                </header>
+                <div id="tasks-list" class="list-container">
+                    <!-- Tarefas JS -->
+                </div>
+            </section>
 
             <!-- VIEW: GESTÃO (Admin Integrado) -->
             <section id="view-admin" class="tab-content">
                 <header class="view-header">
+                    <button class="back-btn" onclick="showSection('view-today')">← Voltar</button>
                     <h1 class="view-title">Gestão</h1>
                 </header>
                 <div class="admin-form">
@@ -172,11 +185,11 @@
             <button class="tab-item" onclick="showSection('view-month')">
                 <span class="icon">🗓️</span><span class="label">Mês</span>
             </button>
+            <button class="tab-item" onclick="showSection('view-tasks')">
+                <span class="icon">✅</span><span class="label">Tarefas</span>
+            </button>
             <button class="tab-item" onclick="showSection('view-inbox')">
                 <span class="icon">📥</span><span class="label">Inbox</span>
-            </button>
-            <button class="tab-item" onclick="showSection('view-admin')">
-                <span class="icon">🔨</span><span class="label">Gestão</span>
             </button>
         </nav>
     </div>
