@@ -65,7 +65,7 @@
                         <h1 class="view-title">Hoje</h1>
                         <span id="current-date" class="view-subtitle">Carregando...</span>
                     </div>
-                    <button class="close-btn" onclick="showSection('view-admin')" title="Criar Serviço">➕</button>
+                    <button class="close-btn" onclick="switchTab('view-admin')" title="Criar Serviço">➕</button>
                 </header>
                 <div id="today-list" class="list-container">
                     <!-- Eventos do Dia JS -->
@@ -114,7 +114,7 @@
             <!-- VIEW: GESTÃO (Admin Integrado) -->
             <section id="view-admin" class="tab-content">
                 <header class="view-header">
-                    <button class="back-btn" onclick="showSection('view-today')">← Voltar</button>
+                    <button class="back-btn" onclick="switchTab('view-today')">← Voltar</button>
                     <h1 class="view-title">Gestão</h1>
                 </header>
                 <div class="admin-form">
@@ -143,8 +143,8 @@
                     <button id="save-btn" class="primary-btn">SALVAR NO FIREBASE</button>
 
                      <div class="archive-access" style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
-                        <button class="secondary-btn" onclick="navigate('view-inbox')">📥 CAIXA DE ENTRADA (INBOX)</button>
-                        <button class="secondary-btn" style="margin-top:10px;" onclick="navigate('view-archive')">📁 VER ARQUIVO (60 DIAS)</button>
+                        <button class="secondary-btn" onclick="switchTab('view-inbox')">📥 CAIXA DE ENTRADA (INBOX)</button>
+                        <button class="secondary-btn" style="margin-top:10px;" onclick="switchTab('view-archive')">📁 VER ARQUIVO (60 DIAS)</button>
                     </div>
                 </div>
             </section>
@@ -163,7 +163,7 @@
             <!-- VIEW: ARQUIVO (LIXO) -->
             <section id="view-archive" class="tab-content">
                 <header class="view-header">
-                    <button class="back-btn" onclick="navigate('view-admin')">← Voltar</button>
+                    <button class="back-btn" onclick="switchTab('view-admin')">← Voltar</button>
                     <h1 class="view-title">Arquivo</h1>
                     <p class="view-subtitle">Registos apagados (Auto-limpeza aos 60 dias)</p>
                 </header>
@@ -176,19 +176,19 @@
 
         <!-- BOTTOM TAB BAR (PWA) -->
         <nav class="tab-bar" style="position: fixed; bottom: 0; width: 100%; z-index: 1000;">
-            <button class="tab-item active" onclick="showSection('view-today')">
+            <button class="tab-item active" onclick="switchTab('view-today')">
                 <span class="icon">🔘</span><span class="label">Hoje</span>
             </button>
-            <button class="tab-item" onclick="showSection('view-week')">
+            <button class="tab-item" onclick="switchTab('view-week')">
                 <span class="icon">📅</span><span class="label">Semana</span>
             </button>
-            <button class="tab-item" onclick="showSection('view-month')">
+            <button class="tab-item" onclick="switchTab('view-month')">
                 <span class="icon">🗓️</span><span class="label">Mês</span>
             </button>
-            <button class="tab-item" onclick="showSection('view-tasks')">
+            <button class="tab-item" onclick="switchTab('view-tasks')">
                 <span class="icon">✅</span><span class="label">Tarefas</span>
             </button>
-            <button class="tab-item" onclick="showSection('view-inbox')">
+            <button class="tab-item" onclick="switchTab('view-inbox')">
                 <span class="icon">📥</span><span class="label">Inbox</span>
             </button>
         </nav>
