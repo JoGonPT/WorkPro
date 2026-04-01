@@ -97,15 +97,13 @@ function refreshUI() {
 // ============================================
 window.openTransferSelector = async () => {
     const list = document.getElementById('users-availability-list');
-    list.innerHTML = '<p style="text-align:center; padding:20px; opacity:0.3;">A calcular buffer de 90min...</p>';
+    list.innerHTML = '<p style="text-align:center; padding:20px; opacity:0.3;">A validar margem de 90min (Buffer)...</p>';
     document.getElementById('transfer-modal').style.display = 'flex';
 
-    if(!currentServiceData.date || !currentServiceData.time) return list.innerHTML = '<p class="dtl-info">Não é possível transferir itens sem data/hora.</p>';
+    if(!currentServiceData.date || !currentServiceData.time) return list.innerHTML = '<p class="dtl-info">Items sem data não podem ser calculados.</p>';
 
-    const proposedBase = new Date(`${currentServiceData.date}T${currentServiceData.time}`).getTime();
-    const buffer = 90 * 60 * 1000;
-    const rangeStart = proposedBase - buffer;
-    const rangeEnd = proposedBase + buffer;
+    const proposedStart = new Date(`${currentServiceData.date}T${currentServiceData.time}`).getTime();
+    const safetyBuffer = 150 * 60 * 1000; // Formula: Fim(60m) + 90m Buffer = 150m total
 
     const uids = Object.keys(allUserProfiles).filter(uid => uid !== currentUser.uid);
     list.innerHTML = '';
@@ -115,22 +113,23 @@ window.openTransferSelector = async () => {
         const userCal = await get(ref(db, `work_pro/users/${uid}/active`));
         const activities = userCal.val() ? Object.values(userCal.val()) : [];
         
-        // Regra de Segurança: 90min buffer
+        // Verificação de Buffer (150min entre inícios)
         const isBusy = activities.some(a => {
             if(!a.date || !a.time || a.status === 'transferred') return false;
-            const actTime = new Date(`${a.date}T${a.time}`).getTime();
-            // Se intersecta o intervalo de 180min (90 antes, 90 depois)
-            return (actTime >= rangeStart && actTime <= rangeEnd);
+            if(a.date !== currentServiceData.date) return false;
+            const existingStart = new Date(`${a.date}T${a.time}`).getTime();
+            return Math.abs(proposedStart - existingStart) < safetyBuffer;
         });
 
         const card = document.createElement('div');
         card.className = 'list-card';
+        card.style.opacity = isBusy ? '0.4' : '1';
         card.innerHTML = `
             <div class="card-info">
                 <span class="card-title"><span class="status-dot ${isBusy?'status-busy':'status-free'}"></span>${profile.name}</span>
-                <span class="card-meta">${isBusy?'Ocupado (Buffer 90m)':'Livre / Disponível'}</span>
+                <span class="card-meta">${isBusy?'Ocupado (Margem < 90m)':'Disponível (Ok)'}</span>
             </div>
-            <button class="primary-btn" style="padding:10px 15px; margin:0;" onclick="sendTransferInvitation('${uid}')" ${isBusy?'disabled opacity="0.3"':''}>ENVIAR</button>
+            ${!isBusy ? `<button class="primary-btn" style="padding:10px 15px; margin:0; width:auto;" onclick="sendTransferInvitation('${uid}')">ENVIAR</button>` : ''}
         `;
         list.appendChild(card);
     }
