@@ -97,6 +97,22 @@
                         </label>
                     </div>
                     <button id="save-btn" class="primary-btn">SALVAR NO FIREBASE</button>
+
+                    <div class="archive-access" style="margin-top: 40px; border-top: 1px solid var(--border); padding-top: 20px;">
+                        <button class="secondary-btn" data-target="view-archive" onclick="navigate('view-archive')">📁 VER ARQUIVO (60 DIAS)</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VIEW: ARQUIVO (LIXO) -->
+            <section id="view-archive" class="spa-view">
+                <header class="view-header">
+                    <button class="back-btn" onclick="navigate('view-admin')">← Voltar</button>
+                    <h1 class="view-title">Arquivo</h1>
+                    <p class="view-subtitle">Registos apagados (Auto-limpeza aos 60 dias)</p>
+                </header>
+                <div id="archive-list" class="list-container">
+                    <!-- Registos Deletados JS -->
                 </div>
             </section>
 
@@ -161,6 +177,19 @@
                     </label>
                 </div>
                 <button class="save-changes-btn" onclick="saveChanges()">GUARDAR ALTERAÇÕES</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SELECIONAR SERVICO DO DIA (MONTH VIEW) -->
+    <div id="day-selector-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-height: 80vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 id="selector-date-display">Serviços do Dia</h2>
+                <button class="close-btn" onclick="document.getElementById('day-selector-modal').style.display='none'">✕</button>
+            </div>
+            <div id="selector-list" class="list-container">
+                <!-- Lista de serviços do dia selecionado no calendário -->
             </div>
         </div>
     </div>

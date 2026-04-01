@@ -173,9 +173,16 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 .modal-footer-actions { display: flex; gap: 10px; }
 .edit-btn, .delete-btn { flex: 1; padding: 18px; border-radius: 12px; border: none; font-size: 1rem; font-weight: 600; }
-.edit-btn { background: rgba(255,255,255,0.1); color: white; }
-.delete-btn { background: rgba(255,59,48,0.1); color: var(--accent-red); }
+.edit-btn { background: rgba(0,122,255,0.15); color: #007aff; border: 1px solid rgba(0,122,255,0.3); }
+.delete-btn { background: rgba(255,59,48,0.15); color: #ff3b30; border: 1px solid rgba(255,59,48,0.3); }
 
-.save-changes-btn { width: 100%; background: var(--accent); color: white; border: none; padding: 20px; border-radius: 15px; font-size: 1.1rem; font-weight: 700; margin-top: 20px; }
-#dtl-edit-mode textarea { height: 120px; margin-top: 15px; margin-bottom:15px;}
+.save-changes-btn { width: 100%; background: #34c759; color: white; border: none; padding: 22px; border-radius: 18px; font-size: 1.1rem; font-weight: 700; margin-top: 20px; box-shadow: 0 5px 15px rgba(52, 199, 89, 0.3); }
+.save-changes-btn:active { transform: scale(0.95); opacity: 0.9; }
+
+.secondary-btn { width: 100%; background: rgba(255,255,255,0.05); color: var(--text-sec); border: none; padding: 15px; border-radius:12px; font-size:0.9rem; font-weight:600;}
+
+.back-btn { background: none; border: none; color: var(--accent); font-size: 1rem; margin-bottom: 20px;}
+
+.archived-item { opacity: 0.4; filter: grayscale(1); }
+#dtl-edit-mode textarea { height: 160px; margin-top: 15px; margin-bottom:15px;}
 

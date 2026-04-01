@@ -1,29 +1,35 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, push, onValue, remove, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, push, onValue, remove, update, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDFwECdwELB_wPHR_9rkkY9MRcNBjQSUks",
     authDomain: "viaz-1e406.firebaseapp.com",
     databaseURL: "https://viaz-1e406-default-rtdb.europe-west1.firebasedatabase.app",
     projectId: "viaz-1e406",
-    storageBucket: "viaz-1e406.firebasestorage.app"
 };
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-let currentServiceData = null; // State para o Modal
+let currentServiceData = null; 
 
 // ============================================
-// 1. SPA NAVIGATION
+// 1. NAVIGATION & SPA SETUP
 // ============================================
+window.navigate = (targetId) => {
+    document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.spa-view').forEach(v => v.classList.remove('active'));
+    
+    const target = document.getElementById(targetId);
+    if(target) target.classList.add('active');
+    
+    const tab = document.querySelector(`.tab-item[data-target="${targetId}"]`);
+    if(tab) tab.classList.add('active');
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
 document.querySelectorAll('.tab-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.spa-view').forEach(v => v.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById(btn.getAttribute('data-target')).classList.add('active');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
+    btn.addEventListener('click', () => navigate(btn.getAttribute('data-target')));
 });
 
 function updateHeader() {
@@ -33,52 +39,43 @@ function updateHeader() {
 updateHeader();
 
 // ============================================
-// 2. RENDERING ENGINE (HOJE / SEMANA / MÊS)
+// 2. DATA SYNC & RENDERING (ACTIVE / ARCHIVED)
 // ============================================
 
-onValue(ref(db, 'work_pro/services'), (snapshot) => {
+// --- SYNC ATIVOS ---
+onValue(ref(db, 'work_pro/active/services'), (snapshot) => {
     const data = snapshot.val();
-    const services = data ? Object.keys(data).map(id => ({ id, ...data[id] })) : [];
+    const services = data ? Object.keys(data).map(id => ({ id, ...data[id], isArchived: false })) : [];
     
     renderToday(services);
     renderWeek(services);
     renderMonth(services);
-    
     checkAlerts(services);
 });
 
-// --- HOJE: Cronológico Minimalista ---
+// --- SYNC ARQUIVO ---
+onValue(ref(db, 'work_pro/archived'), (snapshot) => {
+    const data = snapshot.val();
+    const archived = data ? Object.keys(data).map(id => ({ id, ...data[id], isArchived: true })) : [];
+    renderArchive(archived);
+    cleanupArchived(archived);
+});
+
+// --- HOJE: Minimalista ---
 function renderToday(services) {
     const list = document.getElementById('today-list');
     if (!list) return;
     list.innerHTML = '';
-    
     const todayStr = new Date().toISOString().split('T')[0];
     const todayItems = services.filter(s => s.date === todayStr);
     
-    if (todayItems.length === 0) return list.innerHTML = '<p class="dtl-info" style="padding:20px;">Nenhum serviço para hoje.</p>';
-
+    if (todayItems.length === 0) return list.innerHTML = '<p class="dtl-info" style="padding:20px;">Vazio para hoje.</p>';
+    
     todayItems.sort((a,b) => (a.time || '').localeCompare(b.time || ''));
-
-    todayItems.forEach(s => {
-        const card = document.createElement('div');
-        card.className = 'list-card';
-        card.onclick = () => openDetails(s);
-        card.innerHTML = `
-            <div class="card-info">
-                <span class="card-title">${s.title}</span>
-                <div class="card-meta">
-                    <span>🕒 ${s.time || '--:--'}</span>
-                    ${s.alertEnabled ? '<span>🔔</span>' : ''}
-                </div>
-            </div>
-            <span style="opacity:0.3;">❯</span>
-        `;
-        list.appendChild(card);
-    });
+    todayItems.forEach(s => list.appendChild(createServiceCard(s)));
 }
 
-// --- SEMANA: Lista por Dias ---
+// --- SEMANA: Grupos por Dia ---
 function renderWeek(services) {
     const container = document.getElementById('week-container');
     if (!container) return;
@@ -90,26 +87,24 @@ function renderWeek(services) {
     for (let i = 0; i < 7; i++) {
         const d = new Date(); d.setDate(today.getDate() + i);
         const dStr = d.toISOString().split('T')[0];
-        const dayName = daysMap[d.getDay()];
-        
         const dayItems = services.filter(s => s.date === dStr);
         
-        const dayHeader = document.createElement('div');
-        dayHeader.className = 'week-day-title';
-        dayHeader.innerText = i === 0 ? 'Hoje' : (i === 1 ? 'Amanhã' : dayName);
-        container.appendChild(dayHeader);
+        const header = document.createElement('div');
+        header.className = 'week-day-title';
+        header.innerText = i === 0 ? 'Hoje' : (i === 1 ? 'Amanhã' : daysMap[d.getDay()]);
+        container.appendChild(header);
 
-        if (dayItems.length === 0) {
-            container.innerHTML += `<p style="font-size:0.85rem; opacity:0.3; padding-left:5px;">Vazio</p>`;
+        if (dayItems.length > 3) {
+             // Indicador +X Services se houver muitos
+             dayItems.slice(0, 2).forEach(s => container.appendChild(createServiceCard(s)));
+             const more = document.createElement('div');
+             more.className = 'secondary-btn';
+             more.style.marginTop = '5px';
+             more.innerText = `+${dayItems.length - 2} SERVIÇOS NESTE DIA...`;
+             more.onclick = () => openDaySelector(dStr, dayItems);
+             container.appendChild(more);
         } else {
-            dayItems.sort((a,b) => (a.time || '').localeCompare(b.time || ''));
-            dayItems.forEach(s => {
-                const card = document.createElement('div');
-                card.className = 'list-card';
-                card.onclick = () => openDetails(s);
-                card.innerHTML = `<div class="card-info"><span class="card-title">${s.title}</span><span class="card-meta">${s.time}</span></div>`;
-                container.appendChild(card);
-            });
+             dayItems.forEach(s => container.appendChild(createServiceCard(s)));
         }
     }
 }
@@ -119,47 +114,78 @@ function renderMonth(services) {
     const grid = document.getElementById('month-grid');
     if (!grid) return;
     grid.innerHTML = '';
-
     const now = new Date();
     const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
 
     for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-        const count = services.filter(s => s.date === dateStr).length;
+        const dayItems = services.filter(s => s.date === dateStr);
         
         const dayEl = document.createElement('div');
         dayEl.className = 'month-day';
         dayEl.innerHTML = `<span>${day}</span>`;
-        if (count > 0) dayEl.innerHTML += `<div class="day-dot" style="width:${Math.min(4+count, 12)}px; opacity:${0.4+(count*0.2)}"></div>`;
+        if (dayItems.length > 0) {
+            dayEl.innerHTML += `<div class="day-dot" style="width:${Math.min(4+dayItems.length, 10)}px;"></div>`;
+            dayEl.onclick = () => openDaySelector(dateStr, dayItems);
+        }
         grid.appendChild(dayEl);
     }
 }
 
+// --- ARQUIVO ---
+function renderArchive(items) {
+    const list = document.getElementById('archive-list');
+    if(!list) return;
+    list.innerHTML = '';
+    items.sort((a,b) => b.deletedAt - a.deletedAt).forEach(it => {
+        const card = createServiceCard(it);
+        card.classList.add('archived-item');
+        list.appendChild(card);
+    });
+}
+
+function createServiceCard(s) {
+    const card = document.createElement('div');
+    card.className = 'list-card';
+    card.onclick = () => openDetails(s);
+    card.innerHTML = `<div class="card-info"><span class="card-title">${s.title}</span><div class="card-meta"><span>🕒 ${s.time||'--:--'}</span></div></div><span style="opacity:0.2;">❯</span>`;
+    return card;
+}
+
 // ============================================
-// 3. MODAL LOGIC (DETAILS / EDIT / DELETE)
+// 3. MODAL & MULTI-SELECTOR LOGIC
 // ============================================
+window.openDaySelector = (dateStr, items) => {
+    document.getElementById('selector-date-display').innerText = `Serviços em ${dateStr}`;
+    const list = document.getElementById('selector-list');
+    list.innerHTML = '';
+    items.forEach(s => list.appendChild(createServiceCard(s)));
+    document.getElementById('day-selector-modal').style.display = 'flex';
+};
+
 window.openDetails = (item) => {
     currentServiceData = item;
     toggleEditMode(false);
+    document.getElementById('day-selector-modal').style.display = 'none'; // Close selector if open
     
     document.getElementById('dtl-title-display').innerText = item.title;
     document.getElementById('dtl-date').innerText = item.date || '--';
     document.getElementById('dtl-time').innerText = item.time || '--:--';
-    document.getElementById('dtl-notes').innerText = item.notes || 'Sem notas registradas.';
+    document.getElementById('dtl-notes').innerText = item.notes || 'Sem notas.';
     document.getElementById('dtl-alert-status').style.display = item.alertEnabled ? 'inline-block' : 'none';
+    
+    // Hide buttons if already archived
+    document.querySelector('.modal-footer-actions').style.display = item.isArchived ? 'none' : 'flex';
     
     document.getElementById('details-modal').style.display = 'flex';
 };
 
-window.closeModal = () => {
-    document.getElementById('details-modal').style.display = 'none';
-};
+window.closeModal = () => document.getElementById('details-modal').style.display = 'none';
 
-window.toggleEditMode = (isEditing) => {
-    document.getElementById('dtl-view-mode').style.display = isEditing ? 'none' : 'block';
-    document.getElementById('dtl-edit-mode').style.display = isEditing ? 'block' : 'none';
-    
-    if (isEditing) {
+window.toggleEditMode = (isE) => {
+    document.getElementById('dtl-view-mode').style.display = isE ? 'none' : 'block';
+    document.getElementById('dtl-edit-mode').style.display = isE ? 'block' : 'none';
+    if(isE){
         document.getElementById('edit-title').value = currentServiceData.title;
         document.getElementById('edit-date').value = currentServiceData.date;
         document.getElementById('edit-time').value = currentServiceData.time;
@@ -169,8 +195,6 @@ window.toggleEditMode = (isEditing) => {
 };
 
 window.saveChanges = async () => {
-    if (!currentServiceData) return;
-    
     const upd = {
         title: document.getElementById('edit-title').value,
         date: document.getElementById('edit-date').value,
@@ -178,113 +202,71 @@ window.saveChanges = async () => {
         notes: document.getElementById('edit-notes').value,
         alertEnabled: document.getElementById('edit-alert').checked
     };
-
-    try {
-        await update(ref(db, `work_pro/services/${currentServiceData.id}`), upd);
-        navigator.vibrate(100);
-        
-        // Feedback visual
-        const btn = document.querySelector('.save-changes-btn');
-        btn.innerText = 'GUARDADO! ✔️';
-        setTimeout(() => closeModal(), 800);
-    } catch(e) { alert('Erro ao atualizar.'); }
+    await update(ref(db, `work_pro/active/services/${currentServiceData.id}`), upd);
+    const btn = document.querySelector('.save-changes-btn');
+    btn.innerText = 'GUARDADO! ✔️';
+    setTimeout(() => { closeModal(); btn.innerText = 'GUARDAR ALTERAÇÕES'; }, 1000);
 };
 
 window.confirmDelete = () => {
-    if (confirm("Tem a certeza que deseja APAGAR este serviço?")) {
-        deleteItem();
+    if(confirm("Deseja ARQUIVAR este serviço? (Poderá recuperar no lixo)")) {
+        archiveService();
     }
 };
 
-async function deleteItem() {
-    try {
-        await remove(ref(db, `work_pro/services/${currentServiceData.id}`));
-        navigator.vibrate([50, 50, 50]);
-        closeModal();
-    } catch(e) {}
+async function archiveService() {
+    const id = currentServiceData.id;
+    await push(ref(db, 'work_pro/archived'), { ...currentServiceData, deletedAt: Date.now() });
+    await remove(ref(db, `work_pro/active/services/${id}`));
+    closeModal();
 }
 
-// --- TAREFAS LIST SYNC ---
-onValue(ref(db, 'work_pro/tasks'), (snapshot) => {
-    const data = snapshot.val();
-    const list = document.getElementById('tasks-list');
-    if (!list) return;
-    list.innerHTML = '';
-    if (!data) return;
-
-    Object.keys(data).forEach(id => {
-        const t = data[id];
-        const card = document.createElement('div');
-        card.className = 'list-card';
-        card.style.borderLeftColor = 'var(--accent-gold)';
-        card.innerHTML = `<div class="card-info"><span class="card-title">${t.title}</span></div> <button class="banner-btn" style="background:rgba(255,59,48,0.1); color:var(--accent-red);" onclick="deleteTask('${id}')">OK</button>`;
-        list.appendChild(card);
+function cleanupArchived(archived) {
+    const limit = Date.now() - (60 * 24 * 60 * 60 * 1000);
+    archived.forEach(it => {
+        if(it.deletedAt < limit) remove(ref(db, `work_pro/archived/${it.id}`));
     });
-});
-
-window.deleteTask = async (id) => {
-    if (confirm("Concluir tarefa?")) {
-        await remove(ref(db, `work_pro/tasks/${id}`));
-    }
-};
+}
 
 // ============================================
-// 4. RADAR DE ALERTAS 4H
+// 4. ALERTAS & ADMIN SAVE
 // ============================================
 let activeAlerts = JSON.parse(localStorage.getItem('activeWorkAlerts') || '[]');
 
 function checkAlerts(events) {
-    const now = new Date();
-    const FOUR_HOURS_MS = 4 * 60 * 60 * 1000;
-
+    const now = Date.now();
     events.forEach(ev => {
         if (!ev.date || !ev.time || !ev.alertEnabled) return;
-        const evDate = new Date(`${ev.date}T${ev.time}`);
-        const diff = evDate - now;
-
-        if (diff > 0 && diff <= FOUR_HOURS_MS) {
-            const alertId = `alert_${ev.id}_${ev.date}_${ev.time}`; // Unique id includes time
-            if (!activeAlerts.includes(alertId)) {
-                triggerAlert(ev.title, alertId);
+        const diff = new Date(`${ev.date}T${ev.time}`) - now;
+        if (diff > 0 && diff <= 4*60*60*1000) {
+            const aId = `alert_${ev.id}_${ev.time}`;
+            if (!activeAlerts.includes(aId)) {
+                document.getElementById('alert-msg').innerText = `Serviço em 4h: ${ev.title}`;
+                document.getElementById('sticky-alert').style.display = 'block';
+                activeAlerts.push(aId);
+                localStorage.setItem('activeWorkAlerts', JSON.stringify(activeAlerts));
             }
         }
     });
-}
-
-function triggerAlert(title, id) {
-    document.getElementById('alert-msg').innerText = `Serviço em 4h: ${title}`;
-    document.getElementById('sticky-alert').style.display = 'block';
-    
-    if (!activeAlerts.includes(id)) {
-        activeAlerts.push(id);
-        localStorage.setItem('activeWorkAlerts', JSON.stringify(activeAlerts));
-    }
 }
 
 document.getElementById('dismiss-alert').addEventListener('click', () => {
     document.getElementById('sticky-alert').style.display = 'none';
 });
 
-// ============================================
-// 5. ADMIN SAVE
-// ============================================
 document.getElementById('save-btn')?.addEventListener('click', async () => {
-    const title = document.getElementById('adm-title').value;
-    const date = document.getElementById('adm-date').value;
-    const time = document.getElementById('adm-time').value;
-    const notes = document.getElementById('adm-notes').value;
-    const alertOn = document.getElementById('adm-alert').checked;
-
-    if (!title) return alert('Insira título.');
-
-    try {
-        if (date) {
-            await push(ref(db, 'work_pro/services'), { title, date, time, notes, alertEnabled: alertOn, createdAt: new Date().toISOString() });
-        } else {
-            await push(ref(db, 'work_pro/tasks'), { title, createdAt: new Date().toISOString() });
-        }
-        document.getElementById('adm-title').value = '';
-        document.getElementById('adm-notes').value = '';
-        alert('Gravado com sucesso!');
-    } catch(e) { alert('Erro.'); }
+    const d = document.getElementById('adm-date').value;
+    const item = {
+        title: document.getElementById('adm-title').value,
+        date: d,
+        time: document.getElementById('adm-time').value,
+        notes: document.getElementById('adm-notes').value,
+        alertEnabled: document.getElementById('adm-alert').checked,
+        createdAt: new Date().toISOString()
+    };
+    if(d) await push(ref(db, 'work_pro/active/services'), item);
+    else await push(ref(db, 'work_pro/tasks'), item);
+    
+    document.getElementById('adm-title').value = '';
+    alert('Gravado com sucesso!');
 });
