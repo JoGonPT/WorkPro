@@ -1,6 +1,6 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getDatabase, ref, push, onValue, remove, update, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 const firebaseConfig = {
     apiKey: "AIzaSyDFwECdwELB_wPHR_9rkkY9MRcNBjQSUks",
@@ -21,19 +21,26 @@ let currentUser = null;
 let allServices = []; 
 let currentServiceData = null; 
 let monthOffset = 0;
-let allUserProfiles = {};
+let allUserProfiles = {}; // Map of UID -> { name, email }
 
 // ============================================
-// 1. AUTENTICAÇÃO & PERFIL
+// 1. AUTENTICAÇÃO & PERFIL (INSTR 1)
 // ============================================
 onAuthStateChanged(auth, async (user) => {
     if (user) {
         currentUser = user;
         document.getElementById('auth-screen').style.display = 'none';
         document.getElementById('app-shell').style.display = 'flex';
-        document.getElementById('user-display').innerText = user.email;
+        
+        // Gestão de Nomes (Instrução 1)
+        const userName = user.displayName || user.email.split('@')[0];
+        document.getElementById('user-display').innerText = userName;
+        
+        // Garantir dados no Directory/Profile case não existam
+        await ensureUserProfile(user, userName);
+
         initAppData(user.uid);
-        fetchGlobalProfiles();
+        fetchGlobalProfiles(); // Carregar diretório de colegas
     } else {
         currentUser = null;
         document.getElementById('auth-screen').style.display = 'flex';
@@ -41,12 +48,21 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
+async function ensureUserProfile(user, name) {
+    const profileRef = ref(db, `work_pro/users/${user.uid}/profile`);
+    const dirRef = ref(db, `work_pro/directory/${user.uid}`);
+    
+    // Gravação Dupla (Instrução 1)
+    await update(profileRef, { name: name, email: user.email });
+    await update(dirRef, { name: name, email: user.email });
+}
+
 function fetchGlobalProfiles() {
-    onValue(ref(db, `work_pro/users`), (snap) => {
-        const users = snap.val();
-        if(users) {
-            allUserProfiles = {};
-            Object.keys(users).forEach(uid => { if(users[uid].profile) allUserProfiles[uid] = users[uid].profile; });
+    // Escuta o nó de Directory para obter nomes reais (Instrução 2)
+    onValue(ref(db, `work_pro/directory`), (snap) => {
+        const data = snap.val();
+        if(data) {
+            allUserProfiles = data;
         }
     });
 }
@@ -57,34 +73,37 @@ window.handleAuth = async (type) => {
     const name = document.getElementById('auth-name').value;
     if(!email || !pass) return alert("Preencha email e pass.");
     try {
-        if(type === 'login') await signInWithEmailAndPassword(auth, email, pass);
-        else {
-            if(!name) return alert("Insira o nome.");
+        if(type === 'login') {
+            await signInWithEmailAndPassword(auth, email, pass);
+        } else {
+            if(!name) return alert("Insira o nome para o perfil.");
             const cr = await createUserWithEmailAndPassword(auth, email, pass);
-            await set(ref(db, `work_pro/users/${cr.user.uid}/profile`), { name, email });
+            // Update Profile Auth
+            await updateProfile(cr.user, { displayName: name });
+            // Double Write to DB
+            await ensureUserProfile(cr.user, name);
         }
     } catch(e) { alert("Erro Auth: " + e.message); }
 };
 window.logout = () => signOut(auth);
 
 // ============================================
-// 2. NAVEGAÇÃO E ISOLAMENTO (INSTR. 1)
+// 2. NAVEGAÇÃO E ISOLAMENTO (INSTR. 3)
 // ============================================
 window.switchTab = (tabId) => {
-    // Esconder todas as secções
+    // Isolamento estrito com display: none (Instrução 3)
     document.querySelectorAll('.tab-content').forEach(el => {
+        el.style.display = 'none';
         el.classList.remove('active');
-        el.style.display = 'none'; // Forçar ocultação (display: none)
     });
     
-    // Mostrar apenas a selecionada
     const target = document.getElementById(tabId);
     if(target) {
-        target.classList.add('active');
         target.style.display = 'block';
+        target.classList.add('active');
     }
 
-    // Atualizar botões do menu
+    // Tab Bar Active
     document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
     const activeBtn = Array.from(document.querySelectorAll('.tab-item')).find(b => b.getAttribute('onclick')?.includes(tabId));
     if(activeBtn) activeBtn.classList.add('active');
@@ -93,7 +112,7 @@ window.switchTab = (tabId) => {
 };
 
 // ============================================
-// 3. SINCRONIZAÇÃO E FILTRAGEM ESTRITA
+// 3. SINCRONIZAÇÃO E FILTRAGEM
 // ============================================
 function initAppData(uid) {
     onValue(ref(db, `work_pro/users/${uid}/active`), (snap) => {
@@ -116,15 +135,12 @@ function refreshUI() {
     checkAlerts();
 }
 
-// INSTR 2: TAB HOJE (Data == Hoje)
 function filterToday() {
     const list = document.getElementById('today-list');
     if(!list) return;
-    list.innerHTML = ''; // Limpeza Estrita (INSTR. 1)
-
-    const todayStr = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+    list.innerHTML = ''; 
+    const todayStr = new Date().toISOString().split('T')[0];
     const items = allServices.filter(s => s.date === todayStr);
-
     if(!items.length) {
         list.innerHTML = '<p class="dtl-info" style="opacity:0.3; text-align:center; padding:20px;">Sem serviços para hoje.</p>';
         return;
@@ -132,24 +148,19 @@ function filterToday() {
     items.sort((a,b) => (a.time||'').localeCompare(b.time||'')).forEach(s => list.appendChild(createServiceCard(s)));
 }
 
-// INSTR 2: TAB SEMANA (Hoje + 1 até Hoje + 7)
 function filterWeek() {
     const container = document.getElementById('week-container');
     if(!container) return;
-    container.innerHTML = ''; // Limpeza Estrita (INSTR. 1)
-
+    container.innerHTML = '';
     const today = new Date();
     const tStr = today.toISOString().split('T')[0];
     const endWeek = new Date(); endWeek.setDate(today.getDate() + 7);
     const ewStr = endWeek.toISOString().split('T')[0];
-
     const weekItems = allServices.filter(s => s.date > tStr && s.date <= ewStr);
-    
     if(!weekItems.length) {
-        container.innerHTML = '<p class="dtl-info" style="opacity:0.3; text-align:center; padding:20px;">Nada agendado para a semana.</p>';
+        container.innerHTML = '<p class="dtl-info" style="opacity:0.3; text-align:center; padding:20px;">Nada para a semana.</p>';
         return;
     }
-
     const groups = {};
     weekItems.forEach(s => { if(!groups[s.date]) groups[s.date] = []; groups[s.date].push(s); });
     Object.keys(groups).sort().forEach(date => {
@@ -160,17 +171,11 @@ function filterWeek() {
     });
 }
 
-// INSTR 2: TAB TAREFAS (Sem Data/Hora)
 function renderTasks() {
     const list = document.getElementById('tasks-list');
-    if(!list) return;
-    list.innerHTML = ''; // Limpeza (INSTR. 1)
-
+    if(!list) return; list.innerHTML = '';
     const tasks = allServices.filter(s => !s.date || s.date === "");
-    if(!tasks.length) {
-        list.innerHTML = '<p class="dtl-info" style="opacity:0.3; text-align:center; padding:20px;">Lista de tarefas vazia.</p>';
-        return;
-    }
+    if(!tasks.length) return list.innerHTML = '<p class="dtl-info" style="opacity:0.3; text-align:center; padding:20px;">Sem tarefas.</p>';
     tasks.forEach(t => list.appendChild(createServiceCard(t)));
 }
 
@@ -200,7 +205,6 @@ function renderInbox(items) {
     });
 }
 
-// INSTR 4: ALERTA 4H FIXO (Persistence)
 function checkAlerts() {
     const now = Date.now();
     const banner = document.getElementById('sticky-alert');
@@ -216,34 +220,30 @@ function checkAlerts() {
     banner.style.display = hasAlert ? 'block' : 'none';
 }
 
-document.getElementById('dismiss-alert')?.addEventListener('click', () => {
-    document.getElementById('sticky-alert').style.display = 'none';
-});
-
 // ============================================
-// 4. TRANSFER & BUFFER 90MIN (INSTR. 3)
+// 4. TRANSFER & BUFFER (INSTR. 2 & 4)
 // ============================================
 window.openTransferSelector = async () => {
     const list = document.getElementById('users-availability-list');
-    list.innerHTML = '<p style="text-align:center; padding:20px; opacity:0.3;">Calculando buffer 90min...</p>';
+    list.innerHTML = '<p style="text-align:center; padding:20px; opacity:0.3;">Lendo diretório e buffer...</p>';
     document.getElementById('transfer-modal').style.display = 'flex';
 
-    if(!currentServiceData.date || !currentServiceData.time) return list.innerHTML = '<p class="dtl-info">Data/Hora necessárias.</p>';
-
     const pStart = new Date(`${currentServiceData.date}T${currentServiceData.time}`).getTime();
-    const buffer = 150 * 60 * 1000; // Formula: 60m (serviço) + 90m (folga) = 150m total
+    const buffer = 150 * 60 * 1000;
 
     const uids = Object.keys(allUserProfiles).filter(uid => uid !== currentUser.uid);
     list.innerHTML = '';
 
     for(const uid of uids) {
+        const profil = allUserProfiles[uid];
+        const displayName = profil.name || profil.email || 'Colega'; // Fallback Instrução 2
+
         const uCal = await get(ref(db, `work_pro/users/${uid}/active`));
         const acts = uCal.val() ? Object.values(uCal.val()) : [];
         const isOccupied = acts.some(a => {
             if(!a.date || !a.time || a.status === 'transferred') return false;
             if(a.date !== currentServiceData.date) return false;
-            const actStart = new Date(`${a.date}T${a.time}`).getTime();
-            return Math.abs(pStart - actStart) < buffer;
+            return Math.abs(pStart - new Date(`${a.date}T${a.time}`).getTime()) < buffer;
         });
 
         const card = document.createElement('div');
@@ -251,8 +251,8 @@ window.openTransferSelector = async () => {
         card.style.opacity = isOccupied ? '0.4' : '1';
         card.innerHTML = `
             <div class="card-info">
-                <span class="card-title"><span class="status-dot ${isOccupied?'status-busy':'status-free'}"></span>${allUserProfiles[uid].name}</span>
-                <span class="card-meta">${isOccupied?'Ocupado (Buffer 90m)':'Disponível'}</span>
+                <span class="card-title"><span class="status-dot ${isOccupied?'status-busy':'status-free'}"></span>${displayName}</span>
+                <span class="card-meta">${isOccupied?'Ocupado (Margem < 90min)':'Disponível'}</span>
             </div>
             ${!isOccupied ? `<button class="primary-btn" style="width:auto; margin:0;" onclick="sendTransferInvitation('${uid}', this)">ENVIAR</button>` : ''}
         `;
@@ -261,19 +261,15 @@ window.openTransferSelector = async () => {
 };
 
 window.sendTransferInvitation = async (targetUid, btn) => {
-    const orig = btn.innerText; btn.innerText = 'Enviando...'; btn.disabled = true;
+    btn.innerText = 'Enviando...'; btn.disabled = true;
     try {
-        const inv = { ...currentServiceData, senderUid: currentUser.uid, senderName: allUserProfiles[currentUser.uid].name, originalId: currentServiceData.id, sentAt: Date.now() };
+        const senderName = currentUser.displayName || currentUser.email.split('@')[0];
+        const inv = { ...currentServiceData, senderUid: currentUser.uid, senderName: senderName, originalId: currentServiceData.id, sentAt: Date.now() };
         await push(ref(db, `work_pro/users/${targetUid}/inbox`), inv);
-        
         btn.innerText = '✅ Enviado!';
         await update(ref(db, `work_pro/users/${currentUser.uid}/active/${currentServiceData.id}`), { status: 'pending_acceptance' });
-        
         setTimeout(() => { document.getElementById('transfer-modal').style.display = 'none'; closeModal(); }, 1500);
-    } catch(e) {
-        btn.innerText = orig; btn.disabled = false;
-        alert("Erro no Firebase: " + e.message);
-    }
+    } catch(e) { btn.innerText = 'Erro'; btn.disabled = false; alert(e.message); }
 };
 
 window.acceptService = async (inboxId) => {
@@ -283,32 +279,28 @@ window.acceptService = async (inboxId) => {
     if(!item) return;
     try {
         await push(ref(db, `work_pro/users/${uid}/active`), { ...item, id: null, status: 'active' });
+        const myName = currentUser.displayName || currentUser.email.split('@')[0];
         await update(ref(db, `work_pro/users/${item.senderUid}/active/${item.originalId}`), {
-            status: 'transferred', transferredToName: allUserProfiles[uid].name
+            status: 'transferred', transferredToName: myName
         });
         await remove(ref(db, `work_pro/users/${uid}/inbox/${inboxId}`));
-        alert("Serviço Aceite!"); closeModal();
-    } catch(e) { alert("Erro: " + e.message); }
+        alert("Aceite!"); closeModal();
+    } catch(e) { alert(e.message); }
 };
 
 // ============================================
-// 5. VISUAL & HELPERS (INSTR. 5)
+// 5. VISUAL HELPERS
 // ============================================
 function createServiceCard(s) {
     const card = document.createElement('div');
     const isTransferred = s.status === 'transferred';
     const isPending = s.status === 'pending_acceptance';
-    
     card.className = 'list-card' + (isTransferred ? ' transferred' : '') + (isPending ? ' pending' : '');
     card.dataset.id = s.id;
-    
-    // INSTR 5: OPACITY 0.5 PARA TRANSFERIDOS
     if(isTransferred || isPending) card.style.opacity = '0.5';
-
     let label = '';
     if(isTransferred) label = `<span class="card-transfer-label">📤 Transferido para: ${s.transferredToName}</span>`;
-    if(isPending) label = `<span class="card-transfer-label" style="color:var(--accent-gold)">⏳ Pendente de Aceitação</span>`;
-
+    if(isPending) label = `<span class="card-transfer-label" style="color:var(--accent-gold)">⏳ Pendente</span>`;
     card.innerHTML = `<div class="card-info"><span class="card-title">${s.title}</span><div class="card-meta"><span>🕒 ${s.time||'S/H'}</span></div>${label}</div><span style="opacity:0.2;">❯</span>`;
     return card;
 }
@@ -339,7 +331,7 @@ window.changeMonth = (dir) => { monthOffset += dir; renderMonth(); };
 document.getElementById('save-btn')?.addEventListener('click', async () => {
     const t = document.getElementById('adm-title').value;
     const d = document.getElementById('adm-date').value;
-    if(!t) return alert("Título obrigatório.");
+    if(!t) return alert("Título necessário.");
     const item = { 
         title: t, date: d, 
         time: document.getElementById('adm-time').value, 
