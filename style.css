@@ -62,7 +62,7 @@ body {
 /* MAIN CONTENT WITH VIEWPORT SCROLL */
 .main-content {
     flex: 1; overflow-y: auto; padding: 20px;
-    padding-bottom: calc(90px + var(--safe-bottom)); 
+    padding-bottom: 120px; /* Espaço para a Tab Bar fixa */
 }
 
 .view-header { margin-bottom: 30px; }
@@ -72,12 +72,12 @@ body {
 /* TAB BAR (IOS Style) */
 .tab-bar {
     position: fixed; bottom: 0; left: 0; right: 0;
-    background: rgba(30, 30, 30, 0.85); backdrop-filter: blur(20px);
-    height: calc(75px + var(--safe-bottom));
+    background: rgba(30, 30, 30, 0.95); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+    height: 80px;
     display: flex; justify-content: space-around;
-    padding: 10px 10px var(--safe-bottom) 10px;
+    padding: 10px 5px;
     border-top: 1px solid var(--border);
-    z-index: 9000;
+    z-index: 9999; /* Máxima prioridade */
 }
 .tab-item {
     background: none; border: none; color: var(--text-sec);
