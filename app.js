@@ -24,7 +24,7 @@ let monthOffset = 0;
 let allUserProfiles = {}; // Map of UID -> { name, email }
 
 // ============================================
-// 1. AUTENTICAÇÃO & PERFIL (NOME ÚNICO - INSTR 1)
+// 1. AUTENTICAÇÃO & NOMES ÚNICOS (INSTR 3)
 // ============================================
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -32,26 +32,22 @@ onAuthStateChanged(auth, async (user) => {
         document.getElementById('auth-screen').style.display = 'none';
         document.getElementById('app-shell').style.display = 'flex';
         
-        // Verifica se o utilizador já tem nome no diretório
-        const dir = await get(ref(db, `work_pro/directory/${user.uid}`));
-        if(!dir.exists() || !dir.val().name) {
-             const fallbackName = user.displayName || user.email.split('@')[0];
-             // Tenta gravar se for único, senão solicita
-             const isUnique = await checkNameUniqueness(fallbackName, user.uid);
-             if(isUnique) {
-                 await ensureUserProfile(user, fallbackName);
-             } else {
-                 const newName = prompt("O seu nome padrão já está em uso. Por favor, introduza um nome único (Ex: Nome + Apelido):", fallbackName);
-                 if(newName) {
-                     const isNewUnique = await checkNameUniqueness(newName, user.uid);
-                     if(isNewUnique) await ensureUserProfile(user, newName);
-                     else alert("Como o nome não é único, as funções de transferência podem ficar limitadas.");
-                 }
-             }
+        // Verifica se o utilizador já tem um nome regitrado no diretório central
+        const myName = (await get(ref(db, `work_pro/directory/${user.uid}/name`))).val();
+        
+        if(!myName) {
+            const fallback = user.displayName || user.email.split('@')[0];
+            const isUnique = await checkUniqueName(fallback, user.uid);
+            if(isUnique) { await saveIdentity(user, fallback); }
+            else {
+                const asked = prompt("O seu nome padrão já está em uso. Escolha um nome único (Ex: Nome + Sobrenome):", fallback);
+                if(asked && await checkUniqueName(asked, user.uid)) await saveIdentity(user, asked);
+                else alert("Atenção: Nome não é único. As funções de rede podem falhar.");
+            }
         }
 
-        const nameDisplay = (await get(ref(db, `work_pro/directory/${user.uid}/name`))).val() || user.email.split('@')[0];
-        document.getElementById('user-display').innerText = nameDisplay;
+        const nameLabel = (await get(ref(db, `work_pro/directory/${user.uid}/name`))).val() || user.email.split('@')[0];
+        document.getElementById('user-display').innerText = nameLabel;
 
         initAppData(user.uid);
         fetchGlobalProfiles();
@@ -62,109 +58,95 @@ onAuthStateChanged(auth, async (user) => {
     }
 });
 
-async function checkNameUniqueness(name, myUid) {
+async function checkUniqueName(name, myUid) {
     const snap = await get(ref(db, `work_pro/directory`));
     const all = snap.val();
     if(!all) return true;
     return !Object.keys(all).some(uid => uid !== myUid && all[uid].name?.toLowerCase() === name.toLowerCase());
 }
 
-async function ensureUserProfile(user, name) {
-    const isUnique = await checkNameUniqueness(name, user.uid);
-    if(!isUnique) {
-        alert("Este nome já está em uso por outro utilizador. Por favor, adiciona um sobrenome.");
-        return false;
-    }
+async function saveIdentity(user, name) {
+    if(!(await checkUniqueName(name, user.uid))) return alert("Nome já em uso!");
     await updateProfile(user, { displayName: name });
-    await update(ref(db, `work_pro/users/${user.uid}/profile`), { name, email: user.email });
-    await update(ref(db, `work_pro/directory/${user.uid}`), { name, email: user.email });
-    return true;
+    const payload = { name: name, email: user.email, updatedAt: Date.now() };
+    await update(ref(db, `work_pro/users/${user.uid}/profile`), payload);
+    await update(ref(db, `work_pro/directory/${user.uid}`), payload);
 }
 
 function fetchGlobalProfiles() {
-    onValue(ref(db, `work_pro/directory`), (snap) => {
-        allUserProfiles = snap.val() || {};
-    });
+    onValue(ref(db, `work_pro/directory`), (snap) => { allUserProfiles = snap.val() || {}; });
 }
 
 window.handleAuth = async (type) => {
-    const email = document.getElementById('auth-email').value;
-    const pass = document.getElementById('auth-pass').value;
-    const name = document.getElementById('auth-name').value;
-    if(!email || !pass) return alert("Preencha email e pass.");
+    const e = document.getElementById('auth-email').value, p = document.getElementById('auth-pass').value, n = document.getElementById('auth-name').value;
+    if(!e || !p) return alert("Preecha campos.");
     try {
-        if(type === 'login') await signInWithEmailAndPassword(auth, email, pass);
+        if(type === 'login') await signInWithEmailAndPassword(auth, e, p);
         else {
-            if(!name) return alert("O Nome é Obrigatório.");
-            const isUnique = await checkNameUniqueness(name, "");
-            if(!isUnique) return alert("Este nome já está em uso. Adicione um apelido.");
-            const cr = await createUserWithEmailAndPassword(auth, email, pass);
-            await ensureUserProfile(cr.user, name);
+            if(!n) return alert("Nome obrigatório.");
+            if(!(await checkUniqueName(n, ""))) return alert("Nome já em uso. Escolha outro.");
+            const cr = await createUserWithEmailAndPassword(auth, e, p);
+            await saveIdentity(cr.user, n);
         }
-    } catch(e) { alert("Erro Auth: " + e.message); }
+    } catch(err) { alert(err.message); }
 };
 window.logout = () => signOut(auth);
 
 // ============================================
-// 2. NAVEGAÇÃO E ISOLAMENTO (INSTR 5)
+// 2. NAVEGAÇÃO SPA (ISOLAMENTO TOTAL)
 // ============================================
-window.switchTab = (tabId) => {
-    document.querySelectorAll('.tab-content').forEach(el => {
-        el.style.display = 'none'; el.classList.remove('active');
-    });
-    const target = document.getElementById(tabId);
+window.switchTab = (id) => {
+    document.querySelectorAll('.tab-content').forEach(el => { el.style.display = 'none'; el.classList.remove('active'); });
+    const target = document.getElementById(id);
     if(target) { target.style.display = 'block'; target.classList.add('active'); }
-    document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = Array.from(document.querySelectorAll('.tab-item')).find(b => b.getAttribute('onclick')?.includes(tabId));
-    if(activeBtn) activeBtn.classList.add('active');
+    document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
+    const btn = Array.from(document.querySelectorAll('.tab-item')).find(x => x.getAttribute('onclick')?.includes(id));
+    if(btn) btn.classList.add('active');
     window.scrollTo({ top: 0 });
 };
 
 // ============================================
-// 3. SINCRONIZAÇÃO E FILTRAGEM
+// 3. DATA RENDERING (STRICT FILTERS)
 // ============================================
 function initAppData(uid) {
     onValue(ref(db, `work_pro/users/${uid}/active`), (snap) => {
-        const data = snap.val();
-        allServices = data ? Object.keys(data).map(id => ({ id, ...data[id], isFromInbox: false })) : [];
+        allServices = snap.exists() ? Object.keys(snap.val()).map(k => ({ id: k, ...snap.val()[k] })) : [];
         refreshUI();
     });
     onValue(ref(db, `work_pro/users/${uid}/inbox`), (snap) => {
-        const data = snap.val();
-        renderInbox(data ? Object.keys(data).map(id => ({ id, ...data[id], isFromInbox: true })) : []);
+        const inboxItems = snap.exists() ? Object.keys(snap.val()).map(k => ({ id: k, ...snap.val()[k], isInbox: true })) : [];
+        renderInbox(inboxItems);
     });
 }
 
 function refreshUI() { filterToday(); filterWeek(); renderTasks(); renderMonth(); checkAlerts(); }
 
 function filterToday() {
-    const list = document.getElementById('today-list'); if(!list) return; list.innerHTML = ''; 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const items = allServices.filter(s => s.date === todayStr);
-    if(!items.length) return list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Livre hoje.</p>';
+    const list = document.getElementById('today-list'); if(!list) return; list.innerHTML = '';
+    const today = new Date().toISOString().split('T')[0];
+    const items = allServices.filter(s => s.date === today);
+    if(!items.length) { list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Livre hoje (Ok).</p>'; return; }
     items.sort((a,b)=>(a.time||'').localeCompare(b.time||'')).forEach(s => list.appendChild(createServiceCard(s)));
 }
 
 function filterWeek() {
     const cont = document.getElementById('week-container'); if(!cont) return; cont.innerHTML = '';
     const today = new Date(); const tStr = today.toISOString().split('T')[0];
-    const endWeek = new Date(); endWeek.setDate(today.getDate() + 7);
-    const ewStr = endWeek.toISOString().split('T')[0];
-    const weekItems = allServices.filter(s => s.date > tStr && s.date <= ewStr);
-    if(!weekItems.length) return cont.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Nada para a semana.</p>';
-    const groups = {};
-    weekItems.forEach(s => { if(!groups[s.date]) groups[s.date] = []; groups[s.date].push(s); });
-    Object.keys(groups).sort().forEach(date => {
+    const next7 = new Date(); next7.setDate(today.getDate()+7); const n7Str = next7.toISOString().split('T')[0];
+    const items = allServices.filter(s => s.date > tStr && s.date <= n7Str);
+    if(!items.length) { cont.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Sem serviços agendados para a semana.</p>'; return; }
+    const grps = {}; items.forEach(s => { if(!grps[s.date]) grps[s.date] = []; grps[s.date].push(s); });
+    Object.keys(grps).sort().forEach(d => {
         const h = document.createElement('div'); h.className = 'week-day-title';
-        h.innerText = new Date(date + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'short' });
-        cont.appendChild(h); groups[date].forEach(s => cont.appendChild(createServiceCard(s)));
+        h.innerText = new Date(d + 'T12:00:00').toLocaleDateString('pt-PT', {weekday:'long', day:'numeric', month:'short'});
+        cont.appendChild(h); grps[d].forEach(s => cont.appendChild(createServiceCard(s)));
     });
 }
 
 function renderTasks() {
     const list = document.getElementById('tasks-list'); if(!list) return; list.innerHTML = '';
     const tasks = allServices.filter(s => !s.date || s.date === "");
-    if(!tasks.length) return list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Sem tarefas.</p>';
+    if(!tasks.length) return list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Backlog Vazio.</p>';
     tasks.forEach(t => list.appendChild(createServiceCard(t)));
 }
 
@@ -173,89 +155,100 @@ function renderMonth() {
     const tgt = new Date(); tgt.setMonth(tgt.getMonth() + monthOffset);
     const m = tgt.getMonth(), y = tgt.getFullYear();
     const ds = new Date(y, m+1, 0).getDate();
-    document.getElementById('month-label').innerText = tgt.toLocaleDateString('pt-PT', { month: 'long' });
+    document.getElementById('month-label').innerText = tgt.toLocaleDateString('pt-PT', {month:'long'});
     for(let i=1; i<=ds; i++){
-        const dStr = `${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
-        const items = allServices.filter(s => s.date === dStr);
+        const dsStr = `${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+        const items = allServices.filter(s => s.date === dsStr);
         const el = document.createElement('div'); el.className = 'month-day'; el.innerHTML = `<span>${i}</span>`;
-        if(items.length) { el.innerHTML += `<div class="day-dot"></div>`; el.onclick = () => (items.length===1)?openServiceModal(items[0]):openDaySelector(dStr, items); }
+        if(items.length) { el.innerHTML += `<div class="day-dot"></div>`; el.onclick = () => (items.length===1)?openServiceModal(items[0]):openDaySelector(dsStr, items); }
         grid.appendChild(el);
     }
 }
 
-// INBOX COM DETALHES COMPLETOS (INSTR 2)
+// INSTR 2: ABRIR DETALHES NA INBOX
 function renderInbox(items) {
     const list = document.getElementById('inbox-list'); if(!list) return; list.innerHTML = '';
-    if(!items.length) return list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Inbox Vazia.</p>';
+    if(!items.length) return list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Caixa de Entrada Vazia.</p>';
     items.forEach(it => {
-        const d = document.createElement('div'); d.className = 'list-card';
-        d.innerHTML = `<div class="card-info" onclick="openServiceModal(JSON.parse('${JSON.stringify(it).replace(/'/g, "\\'")}'))"><span class="card-title">${it.title}</span><span class="card-meta">De: ${it.senderName}</span><span style="font-size:0.7rem; color:var(--accent);">Ver Detalhes do Convite</span></div><button class="primary-btn" style="width:auto; margin:0;" onclick="acceptService('${it.id}')">ACEITAR</button>`;
-        list.appendChild(d);
+        const card = document.createElement('div'); card.className = 'list-card';
+        card.innerHTML = `<div class="card-info" style="cursor:pointer" id="inbox-card-${it.id}"><span class="card-title">${it.title}</span><span class="card-meta">De: ${it.senderName}</span><span style="font-size:0.7rem; color:var(--accent); font-weight:600;">Ver Detalhes do Convite</span></div><button class="primary-btn" style="width:auto; margin:0;" onclick="acceptService('${it.id}')">ACEITAR</button>`;
+        list.appendChild(card);
+        document.getElementById(`inbox-card-${it.id}`).onclick = () => openServiceModal(it); // Instrução 2
     });
 }
 
 function checkAlerts() {
     const now = Date.now(); const banner = document.getElementById('sticky-alert');
-    let hasAlert = false;
+    let has = false;
     allServices.forEach(s => {
         if(!s.date || !s.time || !s.alertEnabled || s.status === 'transferred') return;
         const diff = new Date(`${s.date}T${s.time}`).getTime() - now;
-        if(diff > 0 && diff <= 4*60*60*1000) { document.getElementById('alert-msg').innerText = `🚨 ${s.title}!`; hasAlert = true; }
+        if(diff > 0 && diff <= 4*60*60*1000) { document.getElementById('alert-msg').innerText = `🚨 ${s.title} em breve!`; has = true; }
     });
-    banner.style.display = hasAlert ? 'block' : 'none';
+    banner.style.display = has ? 'block' : 'none';
 }
 
 // ============================================
-// 4. ACEITAÇÃO "CLONE PERFEITO" & BUFFER (INSTR 3 & 4)
+// 4. ACEITAR SERVIÇO (CLONE + ATOMIC) (INSTR 1, 4, 5)
 // ============================================
 window.acceptService = async (inboxId) => {
     const uid = currentUser.uid;
-    const snap = await get(ref(db, `work_pro/users/${uid}/inbox/${inboxId}`));
-    const item = snap.val();
-    if(!item) return alert("Convite expirado.");
+    const inboxRef = ref(db, `work_pro/users/${uid}/inbox/${inboxId}`);
+    const snap = await get(inboxRef);
+    const it = snap.val();
+    
+    // Fix: Erro 'Já Expirou' (Instrução 1)
+    if(!snap.exists() || !it) return alert("Este serviço já expirou ou foi aceite por outro colega.");
+
+    // INSTR 5: MARGEM 90 MIN DE SEGURANÇA (VERIFICAR DONO NOVO)
+    const pStart = new Date(`${it.date}T${it.time}`).getTime();
+    const safetyGap = 150 * 60 * 1000; // 60m duração + 90m buffer
+    const conflict = allServices.some(s => {
+        if(!s.date || !s.time || s.status === 'transferred') return false;
+        if(s.date !== it.date) return false;
+        return Math.abs(pStart - new Date(`${s.date}T${s.time}`).getTime()) < safetyGap;
+    });
+
+    if(conflict) return alert("Não podes aceitar este serviço devido a conflito de horário (Margem < 90min).");
 
     try {
-        // Validação de Buffer para o NOVO DONO (Instrução 4)
-        const myCal = await get(ref(db, `work_pro/users/${uid}/active`));
-        const myActs = myCal.val() ? Object.values(myCal.val()) : [];
-        const pStart = new Date(`${item.date}T${item.time}`).getTime();
-        const buffer = 150 * 60 * 1000;
+        // INSTR 1 & 4: CLONE PERFEITO + ATOMIC UPDATE
+        const myName = (await get(ref(db, `work_pro/directory/${uid}/name`))).val() || "Colega";
         
-        const hasConflict = myActs.some(a => {
-            if(!a.date || !a.time || a.status === 'transferred') return false;
-            if(a.date !== item.date) return false;
-            return Math.abs(pStart - new Date(`${a.date}T${a.time}`).getTime()) < buffer;
-        });
-
-        if(hasConflict) return alert("Não podes aceitar este serviço: Gera um conflito com a tua agenda (Buffer 90min).");
-
-        // Clone Perfeito (Instrução 3)
-        const newItem = { 
-            title: item.title, date: item.date, time: item.time, notes: item.notes || "", 
-            alertEnabled: item.alertEnabled || false, status: 'active', createdAt: Date.now() 
+        // Objeto de Novos Dados
+        const updates = {};
+        const newRef = push(ref(db, `work_pro/users/${uid}/active`));
+        
+        // 1. Gravar novo dono (Instrução 4: Clone Integral)
+        updates[`work_pro/users/${uid}/active/${newRef.key}`] = { 
+            title: it.title, date: it.date, time: it.time, notes: it.notes || "", 
+            alertEnabled: it.alertEnabled || false, status: 'active', createdAt: Date.now() 
         };
-        await push(ref(db, `work_pro/users/${uid}/active`), newItem);
+        
+        // 2. Atualizar remetente (Instrução 4: Status Transferido)
+        updates[`work_pro/users/${it.senderUid}/active/${it.originalId}`] = {
+            status: 'transferred', transferredToName: myName 
+        };
+        
+        // 3. Limpar Inbox
+        updates[`work_pro/users/${uid}/inbox/${inboxId}`] = null;
 
-        // Atualizar Remetente e Limpar Inbox
-        const me = (await get(ref(db, `work_pro/directory/${uid}/name`))).val() || "Colega";
-        await update(ref(db, `work_pro/users/${item.senderUid}/active/${item.originalId}`), {
-            status: 'transferred', transferredToName: me 
-        });
-        await remove(ref(db, `work_pro/users/${uid}/inbox/${inboxId}`));
+        // Executar Transação Atómica (Instrução 1)
+        await update(ref(db), updates);
         
         alert("Serviço Aceite e Clonado com Sucesso!"); switchTab('view-today'); closeModal();
-    } catch(e) { alert(e.message); }
+    } catch(err) { alert("Erro Crítico ao Aceitar: " + err.message); }
 };
 
 // ============================================
-// 5. TRANSFER & SELETOR
+// 5. TRANSFER & AVAIABILITY
 // ============================================
 window.openTransferSelector = async () => {
     const list = document.getElementById('users-availability-list');
-    list.innerHTML = '<p style="opacity:0.3;text-align:center;">Lendo diretório...</p>';
+    list.innerHTML = '<p style="opacity:0.3;text-align:center;padding:20px;">Lendo diretório de colegas...</p>';
     document.getElementById('transfer-modal').style.display = 'flex';
     const pStart = new Date(`${currentServiceData.date}T${currentServiceData.time}`).getTime();
-    const buffer = 150 * 60 * 1000;
+    const gap = 150 * 60 * 1000;
     const uids = Object.keys(allUserProfiles).filter(uid => uid !== currentUser.uid);
     list.innerHTML = '';
     for(const uid of uids) {
@@ -265,10 +258,10 @@ window.openTransferSelector = async () => {
         const isBusy = acts.some(a => {
             if(!a.date || !a.time || a.status === 'transferred') return false;
             if(a.date !== currentServiceData.date) return false;
-            return Math.abs(pStart - new Date(`${a.date}T${a.time}`).getTime()) < buffer;
+            return Math.abs(pStart - new Date(`${a.date}T${a.time}`).getTime()) < gap;
         });
         const d = document.createElement('div'); d.className = 'list-card'; d.style.opacity = isBusy ? '0.4' : '1';
-        d.innerHTML = `<div class="card-info"><span class="card-title">${profil.name}</span><span class="card-meta">${isBusy?'Ocupado (Margem 90m)':'Disponível'}</span></div>${!isBusy ? `<button class="primary-btn" style="width:auto; margin:0;" onclick="sendTransferInvitation('${uid}', this)">ENVIAR</button>` : ''}`;
+        d.innerHTML = `<div class="card-info"><span class="card-title">${profil.name}</span><span class="card-meta">${isBusy?'Ocupado (Margem < 90m)':'Disponível'}</span></div>${!isBusy ? `<button class="primary-btn" style="width:auto; margin:0;" onclick="sendTransferInvitation('${uid}', this)">ENVIAR</button>` : ''}`;
         list.appendChild(d);
     }
 };
@@ -282,11 +275,11 @@ window.sendTransferInvitation = async (targetUid, btn) => {
         btn.innerText = '✅ Enviado!';
         await update(ref(db, `work_pro/users/${currentUser.uid}/active/${currentServiceData.id}`), { status: 'pending_acceptance' });
         setTimeout(() => { document.getElementById('transfer-modal').style.display = 'none'; closeModal(); }, 1500);
-    } catch(e) { btn.innerText = 'Erro'; btn.disabled = false; alert(e.message); }
+    } catch(err) { btn.disabled = false; btn.innerText = 'Erro'; alert(err.message); }
 };
 
 // ============================================
-// 6. VISUAL HELPERS
+// 6. VISUALS & DETALHES
 // ============================================
 function createServiceCard(s) {
     const card = document.createElement('div');
@@ -303,7 +296,7 @@ function createServiceCard(s) {
 document.addEventListener('click', (e) => {
     const c = e.target.closest('.list-card');
     if(c && c.dataset.id && !e.target.closest('button')) {
-        const s = (allServices.concat(currentServiceData||[])).find(it => it && it.id === c.dataset.id);
+        const s = (allServices).find(it => it.id === c.dataset.id);
         if(s) openServiceModal(s);
     }
 });
@@ -313,7 +306,7 @@ window.openServiceModal = (s) => {
     document.getElementById('dtl-title-display').innerText = s.title;
     document.getElementById('dtl-date').innerText = s.date || '--';
     document.getElementById('dtl-time').innerText = s.time || '--:--';
-    document.getElementById('dtl-notes').innerText = s.notes || 'Sem notas.';
+    document.getElementById('dtl-notes').innerText = s.notes || 'Sem notas registradas.';
     document.getElementById('details-modal').style.display = 'flex';
 };
 
@@ -328,5 +321,5 @@ document.getElementById('save-btn')?.addEventListener('click', async () => {
     const t = document.getElementById('adm-title').value; if(!t) return alert("Título necessário.");
     const item = { title: t, date: document.getElementById('adm-date').value, time: document.getElementById('adm-time').value, notes: document.getElementById('adm-notes').value, alertEnabled: document.getElementById('adm-alert').checked, status: 'active', createdAt: Date.now() };
     await push(ref(db, `work_pro/users/${currentUser.uid}/active`), item);
-    alert('Salvo!'); document.getElementById('adm-date').value ? switchTab('view-today') : switchTab('view-tasks');
+    alert('Salvo!'); switchTab('view-today');
 });
