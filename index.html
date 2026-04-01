@@ -42,6 +42,7 @@
             <section id="view-week" class="spa-view">
                 <header class="view-header">
                     <h1 class="view-title">Semana</h1>
+                    <span id="week-month-label" class="view-subtitle">--</span>
                 </header>
                 <div id="week-container" class="week-list">
                     <!-- Segmentos de Segunda a Domingo JS -->
@@ -50,8 +51,15 @@
 
             <!-- VIEW: MÊS (Grelha com Pontos) -->
             <section id="view-month" class="spa-view">
-                <header class="view-header">
-                    <h1 class="view-title">Mês</h1>
+                <header class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <h1 class="view-title" id="month-label">Mês</h1>
+                        <span id="year-label" class="view-subtitle">2026</span>
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="close-btn" onclick="changeMonth(-1)">‹</button>
+                        <button class="close-btn" onclick="changeMonth(1)">›</button>
+                    </div>
                 </header>
                 <div id="month-grid" class="calendar-grid-v2">
                     <!-- Grelha compacta com indicadores de tarefas JS -->
