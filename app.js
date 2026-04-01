@@ -39,10 +39,9 @@ function updateHeader() {
 updateHeader();
 
 // ============================================
-// 2. DATA SYNC & RENDERING (ACTIVE / ARCHIVED)
+// 2. DATA SYNC & RENDERING
 // ============================================
 
-// --- SYNC ATIVOS ---
 onValue(ref(db, 'work_pro/active/services'), (snapshot) => {
     const data = snapshot.val();
     const services = data ? Object.keys(data).map(id => ({ id, ...data[id], isArchived: false })) : [];
@@ -53,7 +52,6 @@ onValue(ref(db, 'work_pro/active/services'), (snapshot) => {
     checkAlerts(services);
 });
 
-// --- SYNC ARQUIVO ---
 onValue(ref(db, 'work_pro/archived'), (snapshot) => {
     const data = snapshot.val();
     const archived = data ? Object.keys(data).map(id => ({ id, ...data[id], isArchived: true })) : [];
@@ -61,7 +59,6 @@ onValue(ref(db, 'work_pro/archived'), (snapshot) => {
     cleanupArchived(archived);
 });
 
-// --- HOJE: Minimalista ---
 function renderToday(services) {
     const list = document.getElementById('today-list');
     if (!list) return;
@@ -75,17 +72,16 @@ function renderToday(services) {
     todayItems.forEach(s => list.appendChild(createServiceCard(s)));
 }
 
-// --- SEMANA: Grupos por Dia ---
 function renderWeek(services) {
     const container = document.getElementById('week-container');
     if (!container) return;
     container.innerHTML = '';
 
     const daysMap = { 1:'Segunda', 2:'Terça', 3:'Quarta', 4:'Quinta', 5:'Sexta', 6:'Sábado', 0:'Domingo' };
-    const today = new Date();
+    const todayView = new Date();
 
     for (let i = 0; i < 7; i++) {
-        const d = new Date(); d.setDate(today.getDate() + i);
+        const d = new Date(); d.setDate(todayView.getDate() + i);
         const dStr = d.toISOString().split('T')[0];
         const dayItems = services.filter(s => s.date === dStr);
         
@@ -95,7 +91,6 @@ function renderWeek(services) {
         container.appendChild(header);
 
         if (dayItems.length > 3) {
-             // Indicador +X Services se houver muitos
              dayItems.slice(0, 2).forEach(s => container.appendChild(createServiceCard(s)));
              const more = document.createElement('div');
              more.className = 'secondary-btn';
@@ -109,7 +104,6 @@ function renderWeek(services) {
     }
 }
 
-// --- MÊS: Grelha com Pontos ---
 function renderMonth(services) {
     const grid = document.getElementById('month-grid');
     if (!grid) return;
@@ -124,15 +118,20 @@ function renderMonth(services) {
         const dayEl = document.createElement('div');
         dayEl.className = 'month-day';
         dayEl.innerHTML = `<span>${day}</span>`;
+        
         if (dayItems.length > 0) {
             dayEl.innerHTML += `<div class="day-dot" style="width:${Math.min(4+dayItems.length, 10)}px;"></div>`;
-            dayEl.onclick = () => openDaySelector(dateStr, dayItems);
+            // Lógica Unificada: 1 service -> Open Directly. >1 -> Selector Modal.
+            if (dayItems.length === 1) {
+                dayEl.onclick = () => openDetails(dayItems[0]);
+            } else {
+                dayEl.onclick = () => openDaySelector(dateStr, dayItems);
+            }
         }
         grid.appendChild(dayEl);
     }
 }
 
-// --- ARQUIVO ---
 function renderArchive(items) {
     const list = document.getElementById('archive-list');
     if(!list) return;
@@ -153,7 +152,7 @@ function createServiceCard(s) {
 }
 
 // ============================================
-// 3. MODAL & MULTI-SELECTOR LOGIC
+// 3. MODAL & SELECTOR LOGIC
 // ============================================
 window.openDaySelector = (dateStr, items) => {
     document.getElementById('selector-date-display').innerText = `Serviços em ${dateStr}`;
@@ -166,7 +165,7 @@ window.openDaySelector = (dateStr, items) => {
 window.openDetails = (item) => {
     currentServiceData = item;
     toggleEditMode(false);
-    document.getElementById('day-selector-modal').style.display = 'none'; // Close selector if open
+    document.getElementById('day-selector-modal').style.display = 'none'; 
     
     document.getElementById('dtl-title-display').innerText = item.title;
     document.getElementById('dtl-date').innerText = item.date || '--';
@@ -174,9 +173,7 @@ window.openDetails = (item) => {
     document.getElementById('dtl-notes').innerText = item.notes || 'Sem notas.';
     document.getElementById('dtl-alert-status').style.display = item.alertEnabled ? 'inline-block' : 'none';
     
-    // Hide buttons if already archived
     document.querySelector('.modal-footer-actions').style.display = item.isArchived ? 'none' : 'flex';
-    
     document.getElementById('details-modal').style.display = 'flex';
 };
 
@@ -205,6 +202,7 @@ window.saveChanges = async () => {
     await update(ref(db, `work_pro/active/services/${currentServiceData.id}`), upd);
     const btn = document.querySelector('.save-changes-btn');
     btn.innerText = 'GUARDADO! ✔️';
+    navigator.vibrate(50);
     setTimeout(() => { closeModal(); btn.innerText = 'GUARDAR ALTERAÇÕES'; }, 1000);
 };
 
@@ -218,6 +216,7 @@ async function archiveService() {
     const id = currentServiceData.id;
     await push(ref(db, 'work_pro/archived'), { ...currentServiceData, deletedAt: Date.now() });
     await remove(ref(db, `work_pro/active/services/${id}`));
+    navigator.vibrate([40, 40]);
     closeModal();
 }
 
@@ -250,23 +249,27 @@ function checkAlerts(events) {
     });
 }
 
-document.getElementById('dismiss-alert').addEventListener('click', () => {
+document.getElementById('dismiss-alert')?.addEventListener('click', () => {
     document.getElementById('sticky-alert').style.display = 'none';
 });
 
 document.getElementById('save-btn')?.addEventListener('click', async () => {
     const d = document.getElementById('adm-date').value;
+    const t = document.getElementById('adm-title').value;
+    if(!d || !t) return alert("Preecha Título e Data para agendar o serviço profissional.");
+
     const item = {
-        title: document.getElementById('adm-title').value,
+        title: t,
         date: d,
         time: document.getElementById('adm-time').value,
         notes: document.getElementById('adm-notes').value,
         alertEnabled: document.getElementById('adm-alert').checked,
         createdAt: new Date().toISOString()
     };
-    if(d) await push(ref(db, 'work_pro/active/services'), item);
-    else await push(ref(db, 'work_pro/tasks'), item);
+    await push(ref(db, 'work_pro/active/services'), item);
     
     document.getElementById('adm-title').value = '';
-    alert('Gravado com sucesso!');
+    document.getElementById('adm-notes').value = '';
+    alert('Serviço agendado com sucesso!');
+    navigator.vibrate(60);
 });
