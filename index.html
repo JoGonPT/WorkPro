@@ -29,6 +29,7 @@
             <h1 class="view-title">Work Pro</h1>
             <p class="view-subtitle" style="margin-bottom: 30px;">Login Profissional</p>
             <div class="input-group">
+                <input type="text" id="auth-name" placeholder="Teu Nome (Ex: João)">
                 <input type="email" id="auth-email" placeholder="Email">
                 <input type="password" id="auth-pass" placeholder="Palavra-passe">
             </div>
@@ -198,6 +199,7 @@
                 
                 <div class="modal-footer-actions">
                     <button class="edit-btn" onclick="toggleEditMode(true)">✏️ Editar</button>
+                    <button class="edit-btn" style="background:rgba(255,204,0,0.1); color:#ffcc00; border-color:rgba(255,204,0,0.3);" onclick="openTransferSelector()">📤 Transferir</button>
                     <button class="delete-btn" onclick="confirmDelete()">🗑️ Eliminar</button>
                 </div>
             </div>
@@ -219,6 +221,20 @@
                     </label>
                 </div>
                 <button class="save-changes-btn" onclick="saveChanges()">GUARDAR ALTERAÇÕES</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SELECIONAR COLEGA PARA TRANSFERENCIA -->
+    <div id="transfer-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Transferir Serviço</h2>
+                <button class="close-btn" onclick="document.getElementById('transfer-modal').style.display='none'">✕</button>
+            </div>
+            <div class="dtl-info">Ocupação dos colegas no horário selecionado:</div>
+            <div id="users-availability-list" class="list-container">
+                <!-- Lista de users com 🟢 ou 🔴 -->
             </div>
         </div>
     </div>

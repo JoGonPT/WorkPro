@@ -202,5 +202,12 @@ input:checked + .slider:before { transform: translateX(20px); }
 .back-btn { background: none; border: none; color: var(--accent); font-size: 1rem; margin-bottom: 20px;}
 
 .archived-item { opacity: 0.4; filter: grayscale(1); }
+.list-card.transferred { border-left-color: #555 !important; opacity: 0.5; filter: grayscale(1); pointer-events: none; }
+.card-transfer-label { font-size: 0.75rem; color: var(--accent-gold); font-weight: 600; margin-top: 4px; display: block; }
+
+.status-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+.status-free { background: #34c759; box-shadow: 0 0 10px rgba(52, 199, 89, 0.5); }
+.status-busy { background: #ff3b30; box-shadow: 0 0 10px rgba(255, 59, 48, 0.5); }
+
 #dtl-edit-mode textarea { height: 160px; margin-top: 15px; margin-bottom:15px;}
 
