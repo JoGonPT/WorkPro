@@ -24,7 +24,7 @@ let monthOffset = 0;
 let allUserProfiles = {};
 
 // ============================================
-// 1. AUTH & PROFILES
+// 1. AUTH & SETUP
 // ============================================
 onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -63,7 +63,7 @@ window.handleAuth = async (type) => {
             const cr = await createUserWithEmailAndPassword(auth, email, pass);
             await set(ref(db, `work_pro/users/${cr.user.uid}/profile`), { name, email });
         }
-    } catch(e) { alert("Erro: " + e.message); }
+    } catch(e) { alert("Erro Auth: " + e.message); }
 };
 window.logout = () => signOut(auth);
 
@@ -71,21 +71,12 @@ window.logout = () => signOut(auth);
 // 2. NAVIGATION (TAB SWITCH)
 // ============================================
 window.switchTab = (tabId) => {
-    console.log("[Navigation] Switching to:", tabId);
-    
-    // 1. Ocultação Estrita (display: none via class)
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-    
-    const target = document.getElementById(tabId);
-    if(target) target.classList.add('active');
-
-    // 2. Active Tab Button
+    document.getElementById(tabId)?.classList.add('active');
     document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
-    // Match based on switchTab argument in onclick
     const buttons = Array.from(document.querySelectorAll('.tab-item'));
     const activeBtn = buttons.find(b => b.getAttribute('onclick')?.includes(tabId));
     if(activeBtn) activeBtn.classList.add('active');
-
     window.scrollTo({ top: 0 });
 };
 
@@ -99,7 +90,7 @@ function initAppData(uid) {
         refreshUI();
     });
 
-    onValue(ref(db, `work_pro/inbox/${uid}`), (snap) => {
+    onValue(ref(db, `work_pro/users/${uid}/inbox`), (snap) => {
         const data = snap.val();
         renderInbox(data ? Object.keys(data).map(id => ({ id, ...data[id] })) : []);
     });
@@ -129,12 +120,8 @@ function renderWeek() {
     const tStr = today.toISOString().split('T')[0];
     const next7 = new Date(); next7.setDate(today.getDate() + 7);
     const n7Str = next7.toISOString().split('T')[0];
-
-    // Restrição Estrita: Amanhã até Daqui a 7 Dias
     const items = allServices.filter(s => s.date > tStr && s.date <= n7Str);
-    
     if(!items.length) return cont.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Sem serviços nos próximos 7 dias.</p>';
-
     const days = {};
     items.forEach(s => { if(!days[s.date]) days[s.date] = []; days[s.date].push(s); });
     Object.keys(days).sort().forEach(d => {
@@ -174,7 +161,7 @@ function renderInbox(items) {
     if(!list) return; list.innerHTML = '';
     items.forEach(it => {
         const div = document.createElement('div'); div.className = 'list-card';
-        div.innerHTML = `<div class="card-info"><span class="card-title">${it.title}</span><span class="card-meta">Enviado por: ${it.senderName}</span></div><button class="primary-btn" style="width:auto; margin:0;" onclick="acceptService('${it.id}')">ACEITAR</button>`;
+        div.innerHTML = `<div class="card-info"><span class="card-title">${it.title}</span><span class="card-meta">De: ${it.senderName}</span></div><button class="primary-btn" style="width:auto; margin:0;" onclick="acceptService('${it.id}')">ACEITAR</button>`;
         list.appendChild(div);
     });
 }
@@ -186,24 +173,21 @@ function checkAlerts() {
     allServices.forEach(s => {
         if(!s.date || !s.time || !s.alertEnabled || s.status === 'transferred') return;
         const diff = new Date(`${s.date}T${s.time}`).getTime() - now;
-        if(diff > 0 && diff <= 4*60*60*1000) {
-            document.getElementById('alert-msg').innerText = `🚨 ${s.title} em breve!`;
-            has = true;
-        }
+        if(diff > 0 && diff <= 4*60*60*1000) has = true;
     });
     banner.style.display = has ? 'block' : 'none';
 }
 
 // ============================================
-// 4. TRANSFER INTELLIGENCE (90 MIN BUFFER)
+// 4. TRANSFER LOGIC (90 MIN BUFFER)
 // ============================================
 window.openTransferSelector = async () => {
     const list = document.getElementById('users-availability-list');
-    list.innerHTML = '<p style="text-align:center; padding:20px; opacity:0.3;">Validando margem de 90min...</p>';
+    list.innerHTML = '<p style="text-align:center; padding:20px; opacity:0.3;">Validando colegas...</p>';
     document.getElementById('transfer-modal').style.display = 'flex';
 
     const pStart = new Date(`${currentServiceData.date}T${currentServiceData.time}`).getTime();
-    const safetyGap = 150 * 60 * 1000; // 60m duração + 90m buffer
+    const safetyGap = 150 * 60 * 1000;
 
     const uids = Object.keys(allUserProfiles).filter(uid => uid !== currentUser.uid);
     list.innerHTML = '';
@@ -226,43 +210,98 @@ window.openTransferSelector = async () => {
                 <span class="card-title"><span class="status-dot ${isBusy?'status-busy':'status-free'}"></span>${allUserProfiles[uid].name}</span>
                 <span class="card-meta">${isBusy?'Ocupado (Buffer 90m)':'Disponível'}</span>
             </div>
-            ${!isBusy ? `<button class="primary-btn" style="width:auto; margin:0;" onclick="sendTransferInvitation('${uid}')">ENVIAR</button>` : ''}
+            ${!isBusy ? `<button class="primary-btn transfer-btn" style="width:auto; margin:0;" onclick="sendTransferInvitation('${uid}', this)">ENVIAR</button>` : ''}
         `;
         list.appendChild(card);
     }
 };
 
-window.sendTransferInvitation = async (targetUid) => {
-    const inv = { ...currentServiceData, senderUid: currentUser.uid, senderName: allUserProfiles[currentUser.uid].name, originalId: currentServiceData.id, sentAt: Date.now() };
-    await push(ref(db, `work_pro/inbox/${targetUid}`), inv);
-    alert("Solicitado!"); 
-    document.getElementById('transfer-modal').style.display = 'none';
+window.sendTransferInvitation = async (targetUid, btn) => {
+    console.log('Transferindo para:', targetUid);
+    const originalBtnText = btn.innerText;
+    btn.innerText = 'Enviando...';
+    btn.disabled = true;
+
+    try {
+        // Validação de segurança final (Instrução 3)
+        const uCal = await get(ref(db, `work_pro/users/${targetUid}/active`));
+        const acts = uCal.val() ? Object.values(uCal.val()) : [];
+        const pStart = new Date(`${currentServiceData.date}T${currentServiceData.time}`).getTime();
+        const safetyGap = 150 * 60 * 1000;
+        
+        const isStillBusy = acts.some(a => {
+            if(!a.date || !a.time || a.status === 'transferred') return false;
+            if(a.date !== currentServiceData.date) return false;
+            return Math.abs(pStart - new Date(`${a.date}T${a.time}`).getTime()) < safetyGap;
+        });
+
+        if(isStillBusy) throw new Error("O colega ficou ocupado entretanto.");
+
+        const inv = { 
+            ...currentServiceData, 
+            senderUid: currentUser.uid, 
+            senderName: allUserProfiles[currentUser.uid].name, 
+            originalId: currentServiceData.id, 
+            sentAt: Date.now(),
+            status: 'inbox_pending'
+        };
+
+        // Escrita na Inbox (Instrução 2 - Novo Path)
+        await push(ref(db, `work_pro/users/${targetUid}/inbox`), inv);
+
+        // Feedback Visual e Status Original (Instrução 4)
+        btn.innerText = '✅ Enviado';
+        btn.style.background = '#34c759';
+        
+        await update(ref(db, `work_pro/users/${currentUser.uid}/active/${currentServiceData.id}`), {
+            status: 'pending_acceptance'
+        });
+
+        setTimeout(() => {
+            document.getElementById('transfer-modal').style.display = 'none';
+            closeModal();
+        }, 1500);
+
+    } catch(e) {
+        btn.innerText = originalBtnText;
+        btn.disabled = false;
+        alert('Erro na transferência: ' + e.message); // Instrução 5
+    }
 };
 
 window.acceptService = async (inboxId) => {
     const uid = currentUser.uid;
-    const snap = await get(ref(db, `work_pro/inbox/${uid}/${inboxId}`));
+    const snap = await get(ref(db, `work_pro/users/${uid}/inbox/${inboxId}`));
     const item = snap.val();
-    if(!item) return;
+    if(!item) return alert("Este convite já não existe.");
 
-    await push(ref(db, `work_pro/users/${uid}/active`), { ...item, id: null, status: 'active' });
-    await update(ref(db, `work_pro/users/${item.senderUid}/active/${item.originalId}`), {
-        status: 'transferred', transferredToName: allUserProfiles[uid].name
-    });
-    await remove(ref(db, `work_pro/inbox/${uid}/${inboxId}`));
-    alert("Aceite!"); closeModal();
+    try {
+        await push(ref(db, `work_pro/users/${uid}/active`), { ...item, id: null, status: 'active' });
+        await update(ref(db, `work_pro/users/${item.senderUid}/active/${item.originalId}`), {
+            status: 'transferred', transferredToName: allUserProfiles[uid].name
+        });
+        await remove(ref(db, `work_pro/users/${uid}/inbox/${inboxId}`));
+        alert("Serviço aceite!"); closeModal();
+    } catch(e) { alert("Erro ao aceitar: " + e.message); }
 };
 
 // ============================================
-// 5. MODALS & TOOLS
+// 5. TOOLS & MODALS
 // ============================================
 function createServiceCard(s) {
     const card = document.createElement('div');
     const isTransferred = s.status === 'transferred';
-    card.className = 'list-card' + (isTransferred ? ' transferred' : '');
+    const isPending = s.status === 'pending_acceptance';
+    
+    card.className = 'list-card' + (isTransferred ? ' transferred' : '') + (isPending ? ' pending' : '');
     card.dataset.id = s.id;
-    if(isTransferred) card.style.opacity = '0.5';
-    let label = isTransferred ? `<span class="card-transfer-label">📤 Transferido para: ${s.transferredToName}</span>` : '';
+    
+    if(isTransferred || isPending) card.style.opacity = '0.5';
+
+    let label = '';
+    if(isTransferred) label = `<span class="card-transfer-label">📤 Transferido para: ${s.transferredToName}</span>`;
+    if(isPending) label = `<span class="card-transfer-label" style="color:var(--accent-gold)">⏳ Pendente de Aceitação</span>`;
+
     card.innerHTML = `<div class="card-info"><span class="card-title">${s.title}</span><div class="card-meta"><span>🕒 ${s.time||'S/H'}</span></div>${label}</div><span style="opacity:0.2;">❯</span>`;
     return card;
 }
@@ -303,6 +342,5 @@ document.getElementById('save-btn')?.addEventListener('click', async () => {
         status: 'active', createdAt: Date.now() 
     };
     await push(ref(db, `work_pro/users/${currentUser.uid}/active`), item);
-    alert('Salvo!'); 
-    d ? switchTab('view-today') : switchTab('view-tasks');
+    alert('Salvo!'); d ? switchTab('view-today') : switchTab('view-tasks');
 });
