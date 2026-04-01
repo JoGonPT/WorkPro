@@ -55,10 +55,10 @@
             <button onclick="logout()" style="background:none; border:none; color:var(--accent); font-weight:600;">Sair</button>
         </div>
         <!-- Main Scrollable Content -->
-        <main class="main-content">
+        <main class="main-content" style="padding-bottom: 90px;">
             
             <!-- VIEW: HOJE -->
-            <section id="view-today" class="spa-view active">
+            <section id="view-today" class="tab-content active">
                 <header class="view-header">
                     <h1 class="view-title">Hoje</h1>
                     <span id="current-date" class="view-subtitle">Carregando...</span>
@@ -69,7 +69,7 @@
             </section>
 
             <!-- VIEW: SEMANA (Lista Segmentada) -->
-            <section id="view-week" class="spa-view">
+            <section id="view-week" class="tab-content">
                 <header class="view-header">
                     <h1 class="view-title">Semana</h1>
                     <span id="week-month-label" class="view-subtitle">--</span>
@@ -80,7 +80,7 @@
             </section>
 
             <!-- VIEW: MÊS (Grelha com Pontos) -->
-            <section id="view-month" class="spa-view">
+            <section id="view-month" class="tab-content">
                 <header class="view-header" style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
                         <h1 class="view-title" id="month-label">Mês</h1>
@@ -99,7 +99,7 @@
             <!-- VIEW: GESTÃO (Admin Integrado) -->
 
             <!-- VIEW: GESTÃO (Admin Integrado) -->
-            <section id="view-admin" class="spa-view">
+            <section id="view-admin" class="tab-content">
                 <header class="view-header">
                     <h1 class="view-title">Gestão</h1>
                 </header>
@@ -136,7 +136,7 @@
             </section>
 
             <!-- VIEW: INBOX (Convites) -->
-            <section id="view-inbox" class="spa-view">
+            <section id="view-inbox" class="tab-content">
                 <header class="view-header">
                     <h1 class="view-title">Inbox</h1>
                     <p class="view-subtitle">Convites pendentes (Fist-come, first-served)</p>
@@ -147,7 +147,7 @@
             </section>
 
             <!-- VIEW: ARQUIVO (LIXO) -->
-            <section id="view-archive" class="spa-view">
+            <section id="view-archive" class="tab-content">
                 <header class="view-header">
                     <button class="back-btn" onclick="navigate('view-admin')">← Voltar</button>
                     <h1 class="view-title">Arquivo</h1>
@@ -161,20 +161,20 @@
         </main>
 
         <!-- BOTTOM TAB BAR (PWA) -->
-        <nav class="tab-bar">
-            <button class="tab-item active" data-target="view-today">
+        <nav class="tab-bar" style="position: fixed; bottom: 0; width: 100%; z-index: 1000;">
+            <button class="tab-item active" onclick="showSection('view-today')">
                 <span class="icon">🔘</span><span class="label">Hoje</span>
             </button>
-            <button class="tab-item" data-target="view-week">
+            <button class="tab-item" onclick="showSection('view-week')">
                 <span class="icon">📅</span><span class="label">Semana</span>
             </button>
-            <button class="tab-item" data-target="view-month">
+            <button class="tab-item" onclick="showSection('view-month')">
                 <span class="icon">🗓️</span><span class="label">Mês</span>
             </button>
-            <button class="tab-item" data-target="view-inbox">
+            <button class="tab-item" onclick="showSection('view-inbox')">
                 <span class="icon">📥</span><span class="label">Inbox</span>
             </button>
-            <button class="tab-item" data-target="view-admin">
+            <button class="tab-item" onclick="showSection('view-admin')">
                 <span class="icon">🔨</span><span class="label">Gestão</span>
             </button>
         </nav>
