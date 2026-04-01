@@ -1,0 +1,22 @@
+{
+    "name": "Work Pro Mobile",
+    "short_name": "WorkPro",
+    "description": "Gestão de trabalho com notificações persistentes.",
+    "start_url": "index.html",
+    "display": "standalone",
+    "background_color": "#121212",
+    "theme_color": "#121212",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "https://cdn-icons-png.flaticon.com/512/1041/1041916.png",
+            "type": "image/png",
+            "sizes": "192x192"
+        },
+        {
+            "src": "https://cdn-icons-png.flaticon.com/512/1041/1041916.png",
+            "type": "image/png",
+            "sizes": "512x512"
+        }
+    ]
+}

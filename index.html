@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Work Pro Mobile</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#121212">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+</head>
+<body>
+    <!-- PERSISTENT ALERTA BANNER (Sticky 4h Alert) -->
+    <div id="sticky-alert" class="persistent-banner" style="display: none;">
+        <div class="banner-content">
+            <span class="banner-icon">⚠️</span>
+            <div class="banner-text">
+                <span id="alert-msg">Serviço em 4 Horas: Natação</span>
+            </div>
+            <button class="banner-btn" id="dismiss-alert">LIDO</button>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Main Scrollable Content -->
+        <main class="main-content">
+            
+            <!-- VIEW: HOJE -->
+            <section id="view-today" class="spa-view active">
+                <header class="view-header">
+                    <h1 class="view-title">Hoje</h1>
+                    <span id="current-date" class="view-subtitle">Carregando...</span>
+                </header>
+                <div id="today-list" class="list-container">
+                    <!-- Eventos do Dia JS -->
+                </div>
+            </section>
+
+            <!-- VIEW: SEMANA / MÊS (Simplificada Work) -->
+            <section id="view-calendar" class="spa-view">
+                <header class="view-header">
+                    <h1 class="view-title">Setembro</h1>
+                </header>
+                <div class="calendar-grid-simple" id="work-calendar">
+                    <!-- Grelha Work JS -->
+                </div>
+            </section>
+
+            <!-- VIEW: TAREFAS -->
+            <section id="view-tasks" class="spa-view">
+                <header class="view-header">
+                    <h1 class="view-title">Tarefas</h1>
+                </header>
+                <div id="tasks-list" class="list-container">
+                    <!-- Tarefas Rápidas JS -->
+                </div>
+            </section>
+
+            <!-- VIEW: GESTÃO (Admin Integrado) -->
+            <section id="view-admin" class="spa-view">
+                <header class="view-header">
+                    <h1 class="view-title">Gestão</h1>
+                </header>
+                <div class="admin-form">
+                    <div class="input-group">
+                        <label>Título do Serviço</label>
+                        <input type="text" id="adm-title" placeholder="Ex: Manutenção Servidor">
+                    </div>
+                    <div class="input-group">
+                        <label>Data e Hora</label>
+                        <div class="row-inputs">
+                            <input type="date" id="adm-date">
+                            <input type="time" id="adm-time">
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Notas</label>
+                        <textarea id="adm-notes" placeholder="Detalhes..."></textarea>
+                    </div>
+                    <div class="toggle-group">
+                        <span>Ativar Alerta 4h</span>
+                        <label class="switch">
+                            <input type="checkbox" id="adm-alert" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <button id="save-btn" class="primary-btn">SALVAR NO FIREBASE</button>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- BOTTOM TAB BAR (Fixa Apple Style) -->
+        <nav class="tab-bar">
+            <button class="tab-item active" data-target="view-today">
+                <span class="icon">🔘</span>
+                <span class="label">Hoje</span>
+            </button>
+            <button class="tab-item" data-target="view-calendar">
+                <span class="icon">📅</span>
+                <span class="label">Semana</span>
+            </button>
+            <button class="tab-item" data-target="view-tasks">
+                <span class="icon">✅</span>
+                <span class="label">Tarefas</span>
+            </button>
+            <button class="tab-item" data-target="view-admin">
+                <span class="icon">🔨</span>
+                <span class="label">Gestão</span>
+            </button>
+        </nav>
+    </div>
+
+    <script type="module" src="app.js"></script>
+    <script>
+        // Service Worker Register
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then(reg => console.log('WorkPro Online'))
+                    .catch(err => console.log('Offline Fail'));
+            });
+        }
+    </script>
+</body>
+</html>
