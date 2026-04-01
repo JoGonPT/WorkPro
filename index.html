@@ -38,13 +38,23 @@
                 </div>
             </section>
 
-            <!-- VIEW: SEMANA / MÊS (Simplificada Work) -->
-            <section id="view-calendar" class="spa-view">
+            <!-- VIEW: SEMANA (Lista Segmentada) -->
+            <section id="view-week" class="spa-view">
                 <header class="view-header">
-                    <h1 class="view-title">Setembro</h1>
+                    <h1 class="view-title">Semana</h1>
                 </header>
-                <div class="calendar-grid-simple" id="work-calendar">
-                    <!-- Grelha Work JS -->
+                <div id="week-container" class="week-list">
+                    <!-- Segmentos de Segunda a Domingo JS -->
+                </div>
+            </section>
+
+            <!-- VIEW: MÊS (Grelha com Pontos) -->
+            <section id="view-month" class="spa-view">
+                <header class="view-header">
+                    <h1 class="view-title">Mês</h1>
+                </header>
+                <div id="month-grid" class="calendar-grid-v2">
+                    <!-- Grelha compacta com indicadores de tarefas JS -->
                 </div>
             </section>
 
@@ -92,25 +102,67 @@
 
         </main>
 
-        <!-- BOTTOM TAB BAR (Fixa Apple Style) -->
+        <!-- BOTTOM TAB BAR (PWA) -->
         <nav class="tab-bar">
             <button class="tab-item active" data-target="view-today">
-                <span class="icon">🔘</span>
-                <span class="label">Hoje</span>
+                <span class="icon">🔘</span><span class="label">Hoje</span>
             </button>
-            <button class="tab-item" data-target="view-calendar">
-                <span class="icon">📅</span>
-                <span class="label">Semana</span>
+            <button class="tab-item" data-target="view-week">
+                <span class="icon">📅</span><span class="label">Semana</span>
+            </button>
+            <button class="tab-item" data-target="view-month">
+                <span class="icon">🗓️</span><span class="label">Mês</span>
             </button>
             <button class="tab-item" data-target="view-tasks">
-                <span class="icon">✅</span>
-                <span class="label">Tarefas</span>
+                <span class="icon">✅</span><span class="label">Tarefas</span>
             </button>
             <button class="tab-item" data-target="view-admin">
-                <span class="icon">🔨</span>
-                <span class="label">Gestão</span>
+                <span class="icon">🔨</span><span class="label">Gestão</span>
             </button>
         </nav>
+    </div>
+
+    <!-- GLOBAL DETAILS / EDIT MODAL -->
+    <div id="details-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="dtl-title-display">Título do Serviço</h2>
+                <button class="close-btn" onclick="closeModal()">✕</button>
+            </div>
+            
+            <div id="dtl-view-mode">
+                <p class="dtl-info">📅 <span id="dtl-date">--</span> às <span id="dtl-time">--</span></p>
+                <div class="dtl-notes-box">
+                    <label>Notas:</label>
+                    <p id="dtl-notes">Sem notas registradas.</p>
+                </div>
+                <div class="dtl-alert-badge" id="dtl-alert-status">🔔 Alerta 4h ATIVO</div>
+                
+                <div class="modal-footer-actions">
+                    <button class="edit-btn" onclick="toggleEditMode(true)">✏️ Editar</button>
+                    <button class="delete-btn" onclick="confirmDelete()">🗑️ Eliminar</button>
+                </div>
+            </div>
+
+            <div id="dtl-edit-mode" style="display: none;">
+                <div class="input-group">
+                    <input type="text" id="edit-title">
+                </div>
+                <div class="row-inputs">
+                    <input type="date" id="edit-date">
+                    <input type="time" id="edit-time">
+                </div>
+                <textarea id="edit-notes"></textarea>
+                <div class="toggle-group" style="background: rgba(255,255,255,0.03);">
+                    <span>Alerta 4h</span>
+                    <label class="switch">
+                        <input type="checkbox" id="edit-alert">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <button class="save-changes-btn" onclick="saveChanges()">GUARDAR ALTERAÇÕES</button>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="app.js"></script>
