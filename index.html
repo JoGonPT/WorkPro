@@ -109,7 +109,19 @@
                 <div class="admin-form">
                     <div class="input-group">
                         <label>Título do Serviço</label>
-                        <input type="text" id="adm-title" placeholder="Ex: Manutenção Servidor">
+                        <input type="text" id="adm-title" placeholder="Ex: Transfer Aeroporto">
+                    </div>
+                    <div class="input-group">
+                        <label>Nome do Cliente</label>
+                        <input type="text" id="adm-client" placeholder="Ex: Sr. Silva">
+                    </div>
+                    <div class="input-group">
+                        <label>Contacto WhatsApp</label>
+                        <input type="tel" id="adm-whatsapp" placeholder="351912345678">
+                    </div>
+                    <div class="input-group">
+                        <label>Número do Voo</label>
+                        <input type="text" id="adm-flight" placeholder="Ex: TP1234">
                     </div>
                     <div class="input-group">
                         <label>Data e Hora</label>
@@ -119,19 +131,31 @@
                         </div>
                     </div>
                     <div class="input-group">
-                        <label>Notas</label>
-                        <textarea id="adm-notes" placeholder="Detalhes..."></textarea>
+                        <label>Endereço de Recolha</label>
+                        <input type="text" id="adm-pickup" placeholder="Morada ou link GPS">
                     </div>
-                    <div class="toggle-group">
-                        <span>Ativar Alerta 4h</span>
-                        <label class="switch">
-                            <input type="checkbox" id="adm-alert" checked>
-                            <span class="slider"></span>
-                        </label>
+                    <div class="input-group">
+                        <label>Endereço de Destino</label>
+                        <input type="text" id="adm-destination" placeholder="Morada ou link GPS">
+                    </div>
+                    <div class="input-group">
+                        <label>Notas</label>
+                        <textarea id="adm-notes" placeholder="Detalhes adicionais..."></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Alerta Antes do Serviço</label>
+                        <select id="adm-alert-time">
+                            <option value="0">Sem Alerta</option>
+                            <option value="1">1 hora antes</option>
+                            <option value="2">2 horas antes</option>
+                            <option value="4" selected>4 horas antes</option>
+                            <option value="6">6 horas antes</option>
+                            <option value="12">12 horas antes</option>
+                        </select>
                     </div>
                     <button id="save-btn" class="primary-btn">SALVAR NO FIREBASE</button>
 
-                     <div class="archive-access" style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
+                    <div class="archive-access" style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px;">
                         <button class="secondary-btn" onclick="switchTab('view-inbox')">📥 CAIXA DE ENTRADA (INBOX)</button>
                         <button class="secondary-btn" style="margin-top:10px;" onclick="switchTab('view-archive')">📁 VER ARQUIVO (60 DIAS)</button>
                     </div>
@@ -192,12 +216,27 @@
             </div>
             
             <div id="dtl-view-mode">
+                <!-- TOPO: Cliente e Logística -->
+                <p class="dtl-client" id="dtl-client" style="font-size:1rem; font-weight:600; color:var(--accent); margin:0 0 6px;"></p>
                 <p class="dtl-info">📅 <span id="dtl-date">--</span> às <span id="dtl-time">--</span></p>
+                <p class="dtl-info" id="dtl-flight-row" style="display:none;">✈️ Voo: <span id="dtl-flight">--</span></p>
+
+                <!-- MEIO: Quick Actions (2 colunas) -->
+                <div id="dtl-quick-actions" class="quick-actions-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:15px 0;">
+                    <a id="qa-whatsapp" href="#" target="_blank" class="quick-action-btn" style="display:none;">📞 WhatsApp</a>
+                    <a id="qa-flight" href="#" target="_blank" class="quick-action-btn" style="display:none;">✈️ Estado Voo</a>
+                    <a id="qa-pickup-waze" href="#" target="_blank" class="quick-action-btn" style="display:none;">📍 Recolha (Waze)</a>
+                    <a id="qa-pickup-maps" href="#" target="_blank" class="quick-action-btn" style="display:none;">📍 Recolha (Maps)</a>
+                    <a id="qa-dest-waze" href="#" target="_blank" class="quick-action-btn" style="display:none;">🏁 Destino (Waze)</a>
+                    <a id="qa-dest-maps" href="#" target="_blank" class="quick-action-btn" style="display:none;">🏁 Destino (Maps)</a>
+                </div>
+
+                <!-- FUNDO: Notas e Alerta -->
                 <div class="dtl-notes-box">
                     <label>Notas:</label>
-                    <p id="dtl-notes">Sem notas registradas.</p>
+                    <p id="dtl-notes">Sem notas.</p>
                 </div>
-                <div class="dtl-alert-badge" id="dtl-alert-status">🔔 Alerta 4h ATIVO</div>
+                <div class="dtl-alert-badge" id="dtl-alert-status">🔔 Alerta ATIVO</div>
                 
                 <div class="modal-footer-actions">
                     <button class="edit-btn" onclick="toggleEditMode(true)">✏️ Editar</button>
@@ -207,20 +246,27 @@
             </div>
 
             <div id="dtl-edit-mode" style="display: none;">
-                <div class="input-group">
-                    <input type="text" id="edit-title">
-                </div>
+                <div class="input-group"><label>Título</label><input type="text" id="edit-title"></div>
+                <div class="input-group"><label>Cliente</label><input type="text" id="edit-client"></div>
+                <div class="input-group"><label>WhatsApp</label><input type="tel" id="edit-whatsapp"></div>
+                <div class="input-group"><label>Voo</label><input type="text" id="edit-flight"></div>
                 <div class="row-inputs">
                     <input type="date" id="edit-date">
                     <input type="time" id="edit-time">
                 </div>
-                <textarea id="edit-notes"></textarea>
-                <div class="toggle-group" style="background: rgba(255,255,255,0.03);">
-                    <span>Alerta 4h</span>
-                    <label class="switch">
-                        <input type="checkbox" id="edit-alert">
-                        <span class="slider"></span>
-                    </label>
+                <div class="input-group"><label>Recolha</label><input type="text" id="edit-pickup"></div>
+                <div class="input-group"><label>Destino</label><input type="text" id="edit-destination"></div>
+                <div class="input-group"><label>Notas</label><textarea id="edit-notes"></textarea></div>
+                <div class="input-group">
+                    <label>Alerta</label>
+                    <select id="edit-alert-time">
+                        <option value="0">Sem Alerta</option>
+                        <option value="1">1h antes</option>
+                        <option value="2">2h antes</option>
+                        <option value="4">4h antes</option>
+                        <option value="6">6h antes</option>
+                        <option value="12">12h antes</option>
+                    </select>
                 </div>
                 <button class="save-changes-btn" onclick="saveChanges()">GUARDAR ALTERAÇÕES</button>
             </div>

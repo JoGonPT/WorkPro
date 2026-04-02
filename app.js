@@ -20,7 +20,7 @@ const auth = getAuth(app);
 let currentUser = null;
 let allServices = [];
 let currentServiceData = null;
-let editingId = null; // CRUD: Track if we are editing vs creating
+let editingId = null;
 let monthOffset = 0;
 let allUserProfiles = {};
 
@@ -32,21 +32,19 @@ onAuthStateChanged(auth, async (user) => {
         currentUser = user;
         document.getElementById('auth-screen').style.display = 'none';
         document.getElementById('app-shell').style.display = 'flex';
-
         const myName = (await get(ref(db, `work_pro/directory/${user.uid}/name`))).val();
         if (!myName) {
             const fallback = user.displayName || user.email.split('@')[0];
             const isUnique = await checkUniqueName(fallback, user.uid);
-            if (isUnique) { await saveIdentity(user, fallback); }
+            if (isUnique) await saveIdentity(user, fallback);
             else {
-                const asked = prompt("Nome já em uso. Escolha um único (Ex: Nome Apelido):", fallback);
+                const asked = prompt("Nome já em uso. Escolha um único (Nome + Apelido):", fallback);
                 if (asked && await checkUniqueName(asked, user.uid)) await saveIdentity(user, asked);
-                else alert("Atenção: Nome não é único.");
+                else alert("Nome não é único.");
             }
         }
         const nameLabel = (await get(ref(db, `work_pro/directory/${user.uid}/name`))).val() || user.email.split('@')[0];
         document.getElementById('user-display').innerText = nameLabel;
-
         initAppData(user.uid);
         fetchGlobalProfiles();
     } else {
@@ -62,7 +60,6 @@ async function checkUniqueName(name, myUid) {
     if (!all) return true;
     return !Object.keys(all).some(uid => uid !== myUid && all[uid].name?.toLowerCase() === name.toLowerCase());
 }
-
 async function saveIdentity(user, name) {
     if (!(await checkUniqueName(name, user.uid))) return alert("Nome já em uso!");
     await updateProfile(user, { displayName: name });
@@ -70,15 +67,12 @@ async function saveIdentity(user, name) {
     await update(ref(db, `work_pro/users/${user.uid}/profile`), payload);
     await update(ref(db, `work_pro/directory/${user.uid}`), payload);
 }
-
 function fetchGlobalProfiles() {
     onValue(ref(db, `work_pro/directory`), (snap) => { allUserProfiles = snap.val() || {}; });
 }
 
 window.handleAuth = async (type) => {
-    const e = document.getElementById('auth-email').value;
-    const p = document.getElementById('auth-pass').value;
-    const n = document.getElementById('auth-name').value;
+    const e = document.getElementById('auth-email').value, p = document.getElementById('auth-pass').value, n = document.getElementById('auth-name').value;
     if (!e || !p) return alert("Preencha campos.");
     try {
         if (type === 'login') await signInWithEmailAndPassword(auth, e, p);
@@ -96,104 +90,65 @@ window.logout = () => signOut(auth);
 // 2. NAVIGATION (STRICT ISOLATION)
 // ============================================
 window.switchTab = (id) => {
-    document.querySelectorAll('.tab-content').forEach(el => {
-        el.style.display = 'none';
-        el.classList.remove('active');
-    });
+    document.querySelectorAll('.tab-content').forEach(el => { el.style.display = 'none'; el.classList.remove('active'); });
     const target = document.getElementById(id);
-    if (target) {
-        target.style.display = 'block';
-        target.classList.add('active');
-    }
+    if (target) { target.style.display = 'block'; target.classList.add('active'); }
     document.querySelectorAll('.tab-item').forEach(b => b.classList.remove('active'));
     const btn = Array.from(document.querySelectorAll('.tab-item')).find(x => x.getAttribute('onclick')?.includes(id));
     if (btn) btn.classList.add('active');
-
-    // Reset admin form when navigating to Gestão for a NEW service
     if (id === 'view-admin' && !editingId) resetAdminForm();
-
     window.scrollTo({ top: 0 });
 };
 
 // ============================================
-// 3. DATA SYNC & STRICT FILTERS
+// 3. DATA SYNC & RENDERING
 // ============================================
 function initAppData(uid) {
     onValue(ref(db, `work_pro/users/${uid}/active`), (snap) => {
-        allServices = snap.exists()
-            ? Object.keys(snap.val()).map(k => ({ id: k, ...snap.val()[k] }))
-            : [];
+        allServices = snap.exists() ? Object.keys(snap.val()).map(k => ({ id: k, ...snap.val()[k] })) : [];
         refreshUI();
     });
     onValue(ref(db, `work_pro/users/${uid}/inbox`), (snap) => {
-        const items = snap.exists()
-            ? Object.keys(snap.val()).map(k => ({ id: k, ...snap.val()[k], isInbox: true }))
-            : [];
+        const items = snap.exists() ? Object.keys(snap.val()).map(k => ({ id: k, ...snap.val()[k], isInbox: true })) : [];
         renderInbox(items);
     });
 }
 
-function refreshUI() {
-    filterToday();
-    filterWeek();
-    renderTasks();
-    renderMonth();
-    checkAlerts();
-}
+function refreshUI() { filterToday(); filterWeek(); renderTasks(); renderMonth(); checkAlerts(); }
 
 function filterToday() {
-    const list = document.getElementById('today-list');
-    if (!list) return;
-    list.innerHTML = '';
+    const list = document.getElementById('today-list'); if (!list) return; list.innerHTML = '';
     const today = new Date().toISOString().split('T')[0];
     const items = allServices.filter(s => s.date === today);
-    if (!items.length) {
-        list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Livre hoje.</p>';
-        return;
-    }
+    if (!items.length) return list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Livre hoje.</p>';
     items.sort((a, b) => (a.time || '').localeCompare(b.time || '')).forEach(s => list.appendChild(createServiceCard(s)));
 }
 
 function filterWeek() {
-    const cont = document.getElementById('week-container');
-    if (!cont) return;
-    cont.innerHTML = '';
-    const today = new Date();
-    const tStr = today.toISOString().split('T')[0];
-    const next7 = new Date();
-    next7.setDate(today.getDate() + 7);
-    const n7Str = next7.toISOString().split('T')[0];
+    const cont = document.getElementById('week-container'); if (!cont) return; cont.innerHTML = '';
+    const today = new Date(); const tStr = today.toISOString().split('T')[0];
+    const next7 = new Date(); next7.setDate(today.getDate() + 7); const n7Str = next7.toISOString().split('T')[0];
     const items = allServices.filter(s => s.date > tStr && s.date <= n7Str);
-    if (!items.length) {
-        cont.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Sem serviços esta semana.</p>';
-        return;
-    }
+    if (!items.length) return cont.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Sem serviços esta semana.</p>';
     const grps = {};
     items.forEach(s => { if (!grps[s.date]) grps[s.date] = []; grps[s.date].push(s); });
     Object.keys(grps).sort().forEach(d => {
-        const h = document.createElement('div');
-        h.className = 'week-day-title';
+        const h = document.createElement('div'); h.className = 'week-day-title';
         h.innerText = new Date(d + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'short' });
-        cont.appendChild(h);
-        grps[d].forEach(s => cont.appendChild(createServiceCard(s)));
+        cont.appendChild(h); grps[d].forEach(s => cont.appendChild(createServiceCard(s)));
     });
 }
 
 function renderTasks() {
-    const list = document.getElementById('tasks-list');
-    if (!list) return;
-    list.innerHTML = '';
+    const list = document.getElementById('tasks-list'); if (!list) return; list.innerHTML = '';
     const tasks = allServices.filter(s => !s.date || s.date === "");
     if (!tasks.length) return list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Backlog vazio.</p>';
     tasks.forEach(t => list.appendChild(createServiceCard(t)));
 }
 
 function renderMonth() {
-    const grid = document.getElementById('month-grid');
-    if (!grid) return;
-    grid.innerHTML = '';
-    const tgt = new Date();
-    tgt.setMonth(tgt.getMonth() + monthOffset);
+    const grid = document.getElementById('month-grid'); if (!grid) return; grid.innerHTML = '';
+    const tgt = new Date(); tgt.setMonth(tgt.getMonth() + monthOffset);
     const m = tgt.getMonth(), y = tgt.getFullYear();
     const totalDays = new Date(y, m + 1, 0).getDate();
     document.getElementById('month-label').innerText = tgt.toLocaleDateString('pt-PT', { month: 'long' });
@@ -201,124 +156,115 @@ function renderMonth() {
     for (let i = 1; i <= totalDays; i++) {
         const dsStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
         const items = allServices.filter(s => s.date === dsStr);
-        const el = document.createElement('div');
-        el.className = 'month-day';
-        el.innerHTML = `<span>${i}</span>`;
-        if (items.length) {
-            el.innerHTML += `<div class="day-dot"></div>`;
-            el.onclick = () => openDaySelector(dsStr, items);
-        }
+        const el = document.createElement('div'); el.className = 'month-day'; el.innerHTML = `<span>${i}</span>`;
+        if (items.length) { el.innerHTML += `<div class="day-dot"></div>`; el.onclick = () => openDaySelector(dsStr, items); }
         grid.appendChild(el);
     }
 }
 
 function renderInbox(items) {
-    const list = document.getElementById('inbox-list');
-    if (!list) return;
-    list.innerHTML = '';
+    const list = document.getElementById('inbox-list'); if (!list) return; list.innerHTML = '';
     if (!items.length) return list.innerHTML = '<p class="dtl-info" style="opacity:0.3;text-align:center;padding:20px;">Caixa de Entrada Vazia.</p>';
     items.forEach(it => {
-        const card = document.createElement('div');
-        card.className = 'list-card';
+        const card = document.createElement('div'); card.className = 'list-card';
         card.innerHTML = `
             <div class="card-info" style="cursor:pointer" id="inbox-card-${it.id}">
                 <span class="card-title">${it.title}</span>
                 <span class="card-meta">De: ${it.senderName} · 📅 ${it.date || '--'} · 🕒 ${it.time || '--'}</span>
-                <span style="font-size:0.7rem; color:var(--accent); font-weight:600;">Tocar para Ver Detalhes</span>
+                <span style="font-size:0.7rem; color:var(--accent); font-weight:600;">Ver Detalhes</span>
             </div>
             <button class="primary-btn" style="width:auto; margin:0;" onclick="acceptService('${it.id}')">ACEITAR</button>
         `;
         list.appendChild(card);
-        // Bind detail click after DOM insertion
         document.getElementById(`inbox-card-${it.id}`).onclick = () => openServiceModal(it);
     });
 }
 
+// CUSTOMIZABLE ALERT (reads alertHours instead of boolean)
 function checkAlerts() {
     const now = Date.now();
     const banner = document.getElementById('sticky-alert');
     let has = false;
     allServices.forEach(s => {
-        if (!s.date || !s.time || !s.alertEnabled || s.status === 'transferred') return;
+        if (!s.date || !s.time || s.status === 'transferred') return;
+        const alertH = parseInt(s.alertHours) || 0;
+        if (alertH === 0) return;
         const diff = new Date(`${s.date}T${s.time}`).getTime() - now;
-        if (diff > 0 && diff <= 4 * 60 * 60 * 1000) {
-            document.getElementById('alert-msg').innerText = `🚨 ${s.title} em breve!`;
+        if (diff > 0 && diff <= alertH * 60 * 60 * 1000) {
+            document.getElementById('alert-msg').innerText = `🚨 ${s.title} — ${s.client || ''} em ${alertH}h!`;
             has = true;
         }
     });
     banner.style.display = has ? 'block' : 'none';
 }
 
-document.getElementById('dismiss-alert')?.addEventListener('click', () => {
+document.getElementById('confirm-presence')?.addEventListener('click', () => {
     document.getElementById('sticky-alert').style.display = 'none';
 });
 
 // ============================================
-// 4. CRUD: DELETE SERVICE (INSTR 2)
+// 4. CRUD: DELETE
 // ============================================
 window.confirmDelete = async () => {
-    if (!currentServiceData || !currentServiceData.id) return alert("Nenhum serviço selecionado.");
-    if (!confirm(`Tem certeza que deseja eliminar "${currentServiceData.title}"?`)) return;
-
+    if (!currentServiceData?.id) return alert("Nenhum serviço selecionado.");
+    if (!confirm(`Eliminar "${currentServiceData.title}"?`)) return;
     try {
         await remove(ref(db, `work_pro/users/${currentUser.uid}/active/${currentServiceData.id}`));
-        alert("Serviço eliminado.");
-        closeModal();
-        // UI updates automatically via onValue listener
-    } catch (e) {
-        alert("Erro ao eliminar: " + e.message);
-    }
+        alert("Eliminado."); closeModal();
+    } catch (e) { alert("Erro: " + e.message); }
 };
 
 // ============================================
-// 5. CRUD: EDIT SERVICE (INSTR 3)
+// 5. CRUD: EDIT (Modal Inline — all new fields)
 // ============================================
 window.toggleEditMode = (on) => {
     document.getElementById('dtl-view-mode').style.display = on ? 'none' : 'block';
     document.getElementById('dtl-edit-mode').style.display = on ? 'block' : 'none';
-
     if (on && currentServiceData) {
-        // Pre-fill edit form with current data
         document.getElementById('edit-title').value = currentServiceData.title || '';
+        document.getElementById('edit-client').value = currentServiceData.client || '';
+        document.getElementById('edit-whatsapp').value = currentServiceData.whatsapp || '';
+        document.getElementById('edit-flight').value = currentServiceData.flight || '';
         document.getElementById('edit-date').value = currentServiceData.date || '';
         document.getElementById('edit-time').value = currentServiceData.time || '';
+        document.getElementById('edit-pickup').value = currentServiceData.pickup || '';
+        document.getElementById('edit-destination').value = currentServiceData.destination || '';
         document.getElementById('edit-notes').value = currentServiceData.notes || '';
-        document.getElementById('edit-alert').checked = !!currentServiceData.alertEnabled;
+        document.getElementById('edit-alert-time').value = currentServiceData.alertHours || '4';
     }
 };
 
 window.saveChanges = async () => {
-    if (!currentServiceData || !currentServiceData.id) return alert("ID de serviço não encontrado.");
+    if (!currentServiceData?.id) return alert("ID não encontrado.");
     const newTitle = document.getElementById('edit-title').value;
     if (!newTitle) return alert("Título obrigatório.");
-
-    const updatedData = {
+    const data = {
         title: newTitle,
+        client: document.getElementById('edit-client').value,
+        whatsapp: document.getElementById('edit-whatsapp').value,
+        flight: document.getElementById('edit-flight').value,
         date: document.getElementById('edit-date').value,
         time: document.getElementById('edit-time').value,
+        pickup: document.getElementById('edit-pickup').value,
+        destination: document.getElementById('edit-destination').value,
         notes: document.getElementById('edit-notes').value,
-        alertEnabled: document.getElementById('edit-alert').checked
+        alertHours: document.getElementById('edit-alert-time').value
     };
-
     try {
-        await update(ref(db, `work_pro/users/${currentUser.uid}/active/${currentServiceData.id}`), updatedData);
-        alert("Alterações guardadas!");
-        closeModal();
-    } catch (e) {
-        alert("Erro ao guardar: " + e.message);
-    }
+        await update(ref(db, `work_pro/users/${currentUser.uid}/active/${currentServiceData.id}`), data);
+        alert("Alterações guardadas!"); closeModal();
+    } catch (e) { alert("Erro: " + e.message); }
 };
 
 // ============================================
-// 6. CRUD: CREATE / SAVE (INSTR 3 - edit-aware)
+// 6. CRUD: CREATE / SAVE (edit-aware)
 // ============================================
 function resetAdminForm() {
     editingId = null;
-    document.getElementById('adm-title').value = '';
-    document.getElementById('adm-date').value = '';
-    document.getElementById('adm-time').value = '';
-    document.getElementById('adm-notes').value = '';
-    document.getElementById('adm-alert').checked = true;
+    ['adm-title', 'adm-client', 'adm-whatsapp', 'adm-flight', 'adm-date', 'adm-time', 'adm-pickup', 'adm-destination', 'adm-notes'].forEach(id => {
+        const el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('adm-alert-time').value = '4';
     document.getElementById('save-btn').innerText = 'SALVAR NO FIREBASE';
 }
 
@@ -327,10 +273,15 @@ window.editInAdmin = (serviceId) => {
     if (!s) return;
     editingId = s.id;
     document.getElementById('adm-title').value = s.title || '';
+    document.getElementById('adm-client').value = s.client || '';
+    document.getElementById('adm-whatsapp').value = s.whatsapp || '';
+    document.getElementById('adm-flight').value = s.flight || '';
     document.getElementById('adm-date').value = s.date || '';
     document.getElementById('adm-time').value = s.time || '';
+    document.getElementById('adm-pickup').value = s.pickup || '';
+    document.getElementById('adm-destination').value = s.destination || '';
     document.getElementById('adm-notes').value = s.notes || '';
-    document.getElementById('adm-alert').checked = !!s.alertEnabled;
+    document.getElementById('adm-alert-time').value = s.alertHours || '4';
     document.getElementById('save-btn').innerText = 'ATUALIZAR SERVIÇO';
     closeModal();
     switchTab('view-admin');
@@ -339,111 +290,86 @@ window.editInAdmin = (serviceId) => {
 document.getElementById('save-btn')?.addEventListener('click', async () => {
     const t = document.getElementById('adm-title').value;
     if (!t) return alert("Título necessário.");
-
     const data = {
         title: t,
+        client: document.getElementById('adm-client').value,
+        whatsapp: document.getElementById('adm-whatsapp').value,
+        flight: document.getElementById('adm-flight').value,
         date: document.getElementById('adm-date').value,
         time: document.getElementById('adm-time').value,
+        pickup: document.getElementById('adm-pickup').value,
+        destination: document.getElementById('adm-destination').value,
         notes: document.getElementById('adm-notes').value,
-        alertEnabled: document.getElementById('adm-alert').checked,
+        alertHours: document.getElementById('adm-alert-time').value,
         status: 'active'
     };
-
     try {
         if (editingId) {
-            // UPDATE existing
             await update(ref(db, `work_pro/users/${currentUser.uid}/active/${editingId}`), data);
-            alert("Serviço atualizado!");
+            alert("Atualizado!");
         } else {
-            // CREATE new
             data.createdAt = Date.now();
             await push(ref(db, `work_pro/users/${currentUser.uid}/active`), data);
             alert("Salvo!");
         }
         resetAdminForm();
         switchTab('view-today');
-    } catch (e) {
-        alert("Erro: " + e.message);
-    }
+    } catch (e) { alert("Erro: " + e.message); }
 });
 
 // ============================================
-// 7. ACCEPT SERVICE (ATOMIC CLONE - INSTR 4)
+// 7. ACCEPT (ATOMIC CLONE — all fields)
 // ============================================
 window.acceptService = async (inboxId) => {
     const uid = currentUser.uid;
-    const inboxRef = ref(db, `work_pro/users/${uid}/inbox/${inboxId}`);
-    const snap = await get(inboxRef);
-
-    // Fix: Verify inbox item still exists before proceeding
-    if (!snap.exists()) return alert("Este convite já expirou ou foi aceite por outro colega.");
+    const snap = await get(ref(db, `work_pro/users/${uid}/inbox/${inboxId}`));
+    if (!snap.exists()) return alert("Convite expirado.");
     const it = snap.val();
 
-    // Buffer 90min: Check if new owner has a conflict
     if (it.date && it.time) {
         const pStart = new Date(`${it.date}T${it.time}`).getTime();
-        const safetyGap = 150 * 60 * 1000;
+        const gap = 150 * 60 * 1000;
         const conflict = allServices.some(s => {
             if (!s.date || !s.time || s.status === 'transferred') return false;
             if (s.date !== it.date) return false;
-            return Math.abs(pStart - new Date(`${s.date}T${s.time}`).getTime()) < safetyGap;
+            return Math.abs(pStart - new Date(`${s.date}T${s.time}`).getTime()) < gap;
         });
-        if (conflict) return alert("Não podes aceitar: Conflito de horário (Margem < 90min).");
+        if (conflict) return alert("Conflito de horário (Margem < 90min).");
     }
 
     try {
         const myName = (await get(ref(db, `work_pro/directory/${uid}/name`))).val() || "Colega";
         const newRef = push(ref(db, `work_pro/users/${uid}/active`));
-
-        // Atomic multi-path update
         const updates = {};
-
-        // 1. Clone to new owner's calendar (all fields)
         updates[`work_pro/users/${uid}/active/${newRef.key}`] = {
-            title: it.title,
-            date: it.date || '',
-            time: it.time || '',
-            notes: it.notes || '',
-            alertEnabled: it.alertEnabled || false,
-            status: 'active',
-            createdAt: Date.now()
+            title: it.title, client: it.client || '', whatsapp: it.whatsapp || '',
+            flight: it.flight || '', date: it.date || '', time: it.time || '',
+            pickup: it.pickup || '', destination: it.destination || '',
+            notes: it.notes || '', alertHours: it.alertHours || '0',
+            status: 'active', createdAt: Date.now()
         };
-
-        // 2. Mark sender's original as transferred
         if (it.senderUid && it.originalId) {
             updates[`work_pro/users/${it.senderUid}/active/${it.originalId}/status`] = 'transferred';
             updates[`work_pro/users/${it.senderUid}/active/${it.originalId}/transferredToName`] = myName;
         }
-
-        // 3. Remove from inbox (only after clone is guaranteed)
         updates[`work_pro/users/${uid}/inbox/${inboxId}`] = null;
-
         await update(ref(db), updates);
-
-        alert("Serviço Aceite e Clonado!");
-        switchTab('view-today');
-        closeModal();
-    } catch (err) {
-        alert("Erro ao Aceitar: " + err.message);
-    }
+        alert("Serviço Aceite!"); switchTab('view-today'); closeModal();
+    } catch (err) { alert("Erro: " + err.message); }
 };
 
 // ============================================
 // 8. TRANSFER & AVAILABILITY
 // ============================================
 window.openTransferSelector = async () => {
-    if (!currentServiceData || !currentServiceData.date || !currentServiceData.time) {
-        return alert("Este serviço precisa de Data e Hora para ser transferido.");
-    }
+    if (!currentServiceData?.date || !currentServiceData?.time) return alert("Data/Hora necessárias.");
     const list = document.getElementById('users-availability-list');
-    list.innerHTML = '<p style="opacity:0.3;text-align:center;padding:20px;">Verificando disponibilidade...</p>';
+    list.innerHTML = '<p style="opacity:0.3;text-align:center;padding:20px;">Verificando...</p>';
     document.getElementById('transfer-modal').style.display = 'flex';
-
     const pStart = new Date(`${currentServiceData.date}T${currentServiceData.time}`).getTime();
     const gap = 150 * 60 * 1000;
     const uids = Object.keys(allUserProfiles).filter(uid => uid !== currentUser.uid);
     list.innerHTML = '';
-
     for (const uid of uids) {
         const profil = allUserProfiles[uid];
         const uCal = await get(ref(db, `work_pro/users/${uid}/active`));
@@ -453,44 +379,22 @@ window.openTransferSelector = async () => {
             if (a.date !== currentServiceData.date) return false;
             return Math.abs(pStart - new Date(`${a.date}T${a.time}`).getTime()) < gap;
         });
-        const d = document.createElement('div');
-        d.className = 'list-card';
-        d.style.opacity = isBusy ? '0.4' : '1';
-        d.innerHTML = `
-            <div class="card-info">
-                <span class="card-title">${profil.name || profil.email}</span>
-                <span class="card-meta">${isBusy ? '🔴 Ocupado (Margem < 90m)' : '🟢 Disponível'}</span>
-            </div>
-            ${!isBusy ? `<button class="primary-btn" style="width:auto; margin:0;" onclick="sendTransferInvitation('${uid}', this)">ENVIAR</button>` : ''}
-        `;
+        const d = document.createElement('div'); d.className = 'list-card'; d.style.opacity = isBusy ? '0.4' : '1';
+        d.innerHTML = `<div class="card-info"><span class="card-title">${profil.name || profil.email}</span><span class="card-meta">${isBusy ? '🔴 Ocupado (Margem < 90m)' : '🟢 Disponível'}</span></div>${!isBusy ? `<button class="primary-btn" style="width:auto; margin:0;" onclick="sendTransferInvitation('${uid}', this)">ENVIAR</button>` : ''}`;
         list.appendChild(d);
     }
 };
 
 window.sendTransferInvitation = async (targetUid, btn) => {
     const me = (await get(ref(db, `work_pro/directory/${currentUser.uid}/name`))).val() || "Colega";
-    btn.innerText = 'Enviando...';
-    btn.disabled = true;
+    btn.innerText = 'Enviando...'; btn.disabled = true;
     try {
-        const inv = {
-            ...currentServiceData,
-            senderUid: currentUser.uid,
-            senderName: me,
-            originalId: currentServiceData.id,
-            sentAt: Date.now()
-        };
+        const inv = { ...currentServiceData, senderUid: currentUser.uid, senderName: me, originalId: currentServiceData.id, sentAt: Date.now() };
         await push(ref(db, `work_pro/users/${targetUid}/inbox`), inv);
         btn.innerText = '✅ Enviado!';
         await update(ref(db, `work_pro/users/${currentUser.uid}/active/${currentServiceData.id}`), { status: 'pending_acceptance' });
-        setTimeout(() => {
-            document.getElementById('transfer-modal').style.display = 'none';
-            closeModal();
-        }, 1500);
-    } catch (err) {
-        btn.disabled = false;
-        btn.innerText = 'Erro';
-        alert(err.message);
-    }
+        setTimeout(() => { document.getElementById('transfer-modal').style.display = 'none'; closeModal(); }, 1500);
+    } catch (err) { btn.disabled = false; btn.innerText = 'Erro'; alert(err.message); }
 };
 
 // ============================================
@@ -498,17 +402,18 @@ window.sendTransferInvitation = async (targetUid, btn) => {
 // ============================================
 function createServiceCard(s) {
     const card = document.createElement('div');
-    const isT = s.status === 'transferred';
-    const isP = s.status === 'pending_acceptance';
+    const isT = s.status === 'transferred', isP = s.status === 'pending_acceptance';
     card.className = 'list-card' + (isT ? ' transferred' : '') + (isP ? ' pending' : '');
     card.dataset.id = s.id;
     if (isT || isP) card.style.opacity = '0.5';
     let label = '';
     if (isT) label = `<span class="card-transfer-label">📤 Transferido para: ${s.transferredToName}</span>`;
     if (isP) label = `<span class="card-transfer-label" style="color:var(--accent-gold)">⏳ Pendente</span>`;
+    const clientTag = s.client ? `<span style="color:var(--accent); font-size:0.8rem;">👤 ${s.client}</span>` : '';
     card.innerHTML = `
         <div class="card-info">
             <span class="card-title">${s.title}</span>
+            ${clientTag}
             <div class="card-meta"><span>🕒 ${s.time || 'S/H'}</span></div>
             ${label}
         </div>
@@ -517,7 +422,6 @@ function createServiceCard(s) {
     return card;
 }
 
-// Global click delegation for service cards
 document.addEventListener('click', (e) => {
     const c = e.target.closest('.list-card');
     if (c && c.dataset.id && !e.target.closest('button')) {
@@ -526,35 +430,58 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// DETAIL MODAL WITH QUICK ACTIONS
 window.openServiceModal = (s) => {
     currentServiceData = s;
     toggleEditMode(false);
     document.getElementById('dtl-title-display').innerText = s.title;
+    document.getElementById('dtl-client').innerText = s.client ? `👤 ${s.client}` : '';
     document.getElementById('dtl-date').innerText = s.date || '--';
     document.getElementById('dtl-time').innerText = s.time || '--:--';
     document.getElementById('dtl-notes').innerText = s.notes || 'Sem notas.';
+
+    // Flight row
+    const flightRow = document.getElementById('dtl-flight-row');
+    if (s.flight) { document.getElementById('dtl-flight').innerText = s.flight; flightRow.style.display = 'block'; }
+    else flightRow.style.display = 'none';
+
+    // Alert badge
+    const alertH = parseInt(s.alertHours) || 0;
     const alertBadge = document.getElementById('dtl-alert-status');
-    if (alertBadge) alertBadge.innerText = s.alertEnabled ? '🔔 Alerta 4h ATIVO' : '🔕 Alerta Desativado';
+    if (alertBadge) alertBadge.innerText = alertH > 0 ? `🔔 Alerta ${alertH}h antes` : '🔕 Sem Alerta';
+
+    // QUICK ACTIONS — show/hide based on data
+    setupQuickAction('qa-whatsapp', s.whatsapp, (num) => `https://wa.me/${num}`);
+    setupQuickAction('qa-flight', s.flight, (f) => `https://www.google.com/search?q=flight+status+${encodeURIComponent(f)}`);
+    setupQuickAction('qa-pickup-waze', s.pickup, (addr) => `https://waze.com/ul?q=${encodeURIComponent(addr)}`);
+    setupQuickAction('qa-pickup-maps', s.pickup, (addr) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`);
+    setupQuickAction('qa-dest-waze', s.destination, (addr) => `https://waze.com/ul?q=${encodeURIComponent(addr)}`);
+    setupQuickAction('qa-dest-maps', s.destination, (addr) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`);
+
     document.getElementById('details-modal').style.display = 'flex';
 };
 
-window.closeModal = () => {
-    document.getElementById('details-modal').style.display = 'none';
-};
+function setupQuickAction(elementId, value, urlFn) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    if (value && value.trim()) {
+        el.href = urlFn(value.trim());
+        el.style.display = 'flex';
+    } else {
+        el.style.display = 'none';
+    }
+}
 
-// DAY SELECTOR (Month View - Multiple Services)
+window.closeModal = () => { document.getElementById('details-modal').style.display = 'none'; };
+
 window.openDaySelector = (dateStr, items) => {
     const modal = document.getElementById('day-selector-modal');
     document.getElementById('selector-date-display').innerText =
         new Date(dateStr + 'T12:00:00').toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long' });
-    const list = document.getElementById('selector-list');
-    list.innerHTML = '';
+    const list = document.getElementById('selector-list'); list.innerHTML = '';
     items.forEach(s => {
         const card = createServiceCard(s);
-        card.onclick = () => {
-            modal.style.display = 'none';
-            openServiceModal(s);
-        };
+        card.onclick = () => { modal.style.display = 'none'; openServiceModal(s); };
         list.appendChild(card);
     });
     modal.style.display = 'flex';
