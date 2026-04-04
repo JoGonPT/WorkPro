@@ -229,3 +229,31 @@ select {
     -webkit-appearance: none; appearance: none;
 }
 select option { background: #1c1c1e; color: #fff; }
+
+/* COMPLETE BUTTON */
+.complete-btn {
+    width: 100%; padding: 18px; border-radius: 14px; border: none;
+    font-size: 1.05rem; font-weight: 700; margin-bottom: 15px;
+    background: linear-gradient(135deg, #34c759, #30d158); color: #fff;
+    box-shadow: 0 4px 15px rgba(52, 199, 89, 0.3);
+    transition: all 0.2s ease;
+}
+.complete-btn:active { transform: scale(0.97); opacity: 0.9; }
+.complete-btn.is-completed {
+    background: rgba(255,255,255,0.08); color: var(--text-sec);
+    box-shadow: none;
+}
+
+/* COMPLETED CARD STATE */
+.list-card.completed {
+    border-left: 4px solid #34c759 !important;
+    opacity: 0.6;
+}
+.list-card.completed .card-title {
+    text-decoration: line-through;
+    text-decoration-color: rgba(52, 199, 89, 0.6);
+}
+.card-completed-label {
+    font-size: 0.75rem; color: #34c759; font-weight: 600;
+    margin-top: 4px; display: block;
+}

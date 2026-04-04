@@ -214,6 +214,19 @@ window.confirmDelete = async () => {
     } catch (e) { alert("Erro: " + e.message); }
 };
 
+// TOGGLE COMPLETE / REACTIVATE
+window.toggleComplete = async () => {
+    if (!currentServiceData?.id) return;
+    const newStatus = currentServiceData.status === 'completed' ? 'active' : 'completed';
+    try {
+        await update(ref(db, `work_pro/users/${currentUser.uid}/active/${currentServiceData.id}`), {
+            status: newStatus,
+            completedAt: newStatus === 'completed' ? Date.now() : null
+        });
+        closeModal();
+    } catch (e) { alert("Erro: " + e.message); }
+};
+
 // ============================================
 // 5. CRUD: EDIT (Modal Inline — all new fields)
 // ============================================
@@ -402,13 +415,14 @@ window.sendTransferInvitation = async (targetUid, btn) => {
 // ============================================
 function createServiceCard(s) {
     const card = document.createElement('div');
-    const isT = s.status === 'transferred', isP = s.status === 'pending_acceptance';
-    card.className = 'list-card' + (isT ? ' transferred' : '') + (isP ? ' pending' : '');
+    const isT = s.status === 'transferred', isP = s.status === 'pending_acceptance', isC = s.status === 'completed';
+    card.className = 'list-card' + (isT ? ' transferred' : '') + (isP ? ' pending' : '') + (isC ? ' completed' : '');
     card.dataset.id = s.id;
     if (isT || isP) card.style.opacity = '0.5';
     let label = '';
     if (isT) label = `<span class="card-transfer-label">📤 Transferido para: ${s.transferredToName}</span>`;
     if (isP) label = `<span class="card-transfer-label" style="color:var(--accent-gold)">⏳ Pendente</span>`;
+    if (isC) label = `<span class="card-completed-label">✅ Completado</span>`;
     const clientTag = s.client ? `<span style="color:var(--accent); font-size:0.8rem;">👤 ${s.client}</span>` : '';
     card.innerHTML = `
         <div class="card-info">
@@ -450,7 +464,19 @@ window.openServiceModal = (s) => {
     const alertBadge = document.getElementById('dtl-alert-status');
     if (alertBadge) alertBadge.innerText = alertH > 0 ? `🔔 Alerta ${alertH}h antes` : '🔕 Sem Alerta';
 
-    // QUICK ACTIONS — show/hide based on data
+    // COMPLETE BUTTON STATE
+    const completeBtn = document.getElementById('btn-complete');
+    if (completeBtn) {
+        if (s.status === 'completed') {
+            completeBtn.innerText = '🔄 Reativar Serviço';
+            completeBtn.classList.add('is-completed');
+        } else {
+            completeBtn.innerText = '✅ Marcar como Completado';
+            completeBtn.classList.remove('is-completed');
+        }
+    }
+
+    // QUICK ACTIONS
     setupQuickAction('qa-whatsapp', s.whatsapp, (num) => `https://wa.me/${num}`);
     setupQuickAction('qa-flight', s.flight, (f) => `https://www.google.com/search?q=flight+status+${encodeURIComponent(f)}`);
     setupQuickAction('qa-pickup-waze', s.pickup, (addr) => `https://waze.com/ul?q=${encodeURIComponent(addr)}`);
