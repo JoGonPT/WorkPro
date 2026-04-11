@@ -331,6 +331,107 @@ document.getElementById('save-btn')?.addEventListener('click', async () => {
 });
 
 // ============================================
+// 6.5. OCR: AUTO-FILL COM IMAGEM
+// ============================================
+window.handleOCR = async () => {
+    const fileInput = document.getElementById('ocr-image');
+    const statusMsg = document.getElementById('ocr-status');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        alert("Por favor, selecione uma imagem primeiro.");
+        return;
+    }
+    
+    if (!window.Tesseract) {
+        alert("Erro: Biblioteca OCR não carregada. Verifique a internet e tente novamente.");
+        return;
+    }
+
+    try {
+        statusMsg.style.display = 'block';
+        statusMsg.style.color = '#888';
+        statusMsg.innerText = 'A processar imagem (pode demorar alguns segundos)...';
+        
+        const { data: { text } } = await Tesseract.recognize(
+            file,
+            'por+eng', 
+            {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                       statusMsg.innerText = `A analisar texto: ${Math.round(m.progress * 100)}%`;
+                    }
+                }
+            }
+        );
+        
+        statusMsg.innerText = 'Extração concluída. A preencher os campos...';
+        console.log("=== Texto Extraído (OCR) ===", text); // Útil para debugging
+        
+        const rawText = text;
+
+        // 1. Extração de Nome (Ex. "Nome do passageiro: Barry Scott" ou "Lead: Barry Scott")
+        const nameMatch = rawText.match(/Nome do passageiro:\s*([^\n]+)|Lead:\s*([^\n]+)/i);
+        if (nameMatch) {
+            // Pode vir algum "lixo" no final como icones, limpar se preciso. Aqui pego no que bater.
+            let name = (nameMatch[1] || nameMatch[2] || "").trim();
+            // removemos caracteres estranhos no fim se possível
+            name = name.split(/(\[|■|⚫)/)[0].trim();
+            
+            document.getElementById('adm-client').value = name;
+            
+            // O título podemos já prefixar por uma palavra como Transfer
+            if(document.getElementById('adm-title').value === '') {
+                document.getElementById('adm-title').value = "Transfer " + name.split(" ")[0]; // Transfer + Primeiro Nome
+            }
+        }
+
+        // 2. Extração de Telefone (Ex. "Celular: +18656031304")
+        const phoneMatch = rawText.match(/(?:Celular|Phone|Telemóvel|Contact):\s*(\+?[\d\s]+)/i);
+        if (phoneMatch) {
+            document.getElementById('adm-whatsapp').value = phoneMatch[1].trim().replace(/\s/g, '');
+        }
+
+        // 3. Extração de Voo (Ex. "Voo / Trem: TBA" ou "Flight: TP1234")
+        const flightMatch = rawText.match(/(?:Voo \/ Trem|Flight\s*\/|Voo)\s*:\s*([^\n]+)/i);
+        if (flightMatch) {
+            let voo = flightMatch[1].trim();
+            if (!voo.toLowerCase().includes('tba')) {
+                document.getElementById('adm-flight').value = voo;
+            }
+        }
+
+        // 4. Data e Hora (Ex. "01 out. 2025 16:00")
+        const dateMatch = rawText.match(/(\d{1,2})\s*(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)\.?\s*(\d{4})\s*(\d{2}:\d{2})/i);
+        if (dateMatch) {
+            const day = dateMatch[1].padStart(2, '0');
+            const monthStr = dateMatch[2].toLowerCase();
+            const year = dateMatch[3];
+            const time = dateMatch[4];
+            
+            const months = { 'jan':'01','fev':'02','mar':'03','abr':'04','mai':'05','jun':'06','jul':'07','ago':'08','set':'09','out':'10','nov':'11','dez':'12' };
+            
+            document.getElementById('adm-date').value = `${year}-${months[monthStr]}-${day}`;
+            document.getElementById('adm-time').value = time;
+        }
+
+        // 5. Rota (Tentativa de salvar o bloco inteiro em Notas para não perders as moradas já que é complexo separar corretamente)
+        // Guardamos as primeiras 300 palavras ou o texto todo só para ter o contexto da morada guardado.
+        document.getElementById('adm-notes').value = "--- OCR Dados ---\nVerifique as moradas no texto caso não sejam exatas.\n\n" + rawText.substring(0, 400);
+
+        setTimeout(() => { 
+            statusMsg.style.display = 'none'; 
+            statusMsg.innerText = '';
+        }, 3000);
+
+    } catch (err) {
+        console.error("Erro OCR:", err);
+        statusMsg.innerText = 'Falha ao processar a imagem OCR.';
+        statusMsg.style.color = "var(--accent-red)";
+    }
+};
+
+// ============================================
 // 7. ACCEPT (ATOMIC CLONE — all fields)
 // ============================================
 window.acceptService = async (inboxId) => {
