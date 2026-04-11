@@ -477,7 +477,12 @@ window.openServiceModal = (s) => {
     }
 
     // QUICK ACTIONS
-    setupQuickAction('qa-whatsapp', s.whatsapp, (num) => `https://wa.me/${num}`);
+    setupQuickAction('qa-whatsapp', s.whatsapp, (num) => {
+        const ua = navigator.userAgent || navigator.vendor || window.opera;
+        if (/android/i.test(ua)) return `intent://send?phone=${num}#Intent;package=com.whatsapp.w4b;scheme=whatsapp;end`;
+        if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) return `whatsapp-smb://send?phone=${num}`;
+        return `https://wa.me/${num}`;
+    });
     setupQuickAction('qa-flight', s.flight, (f) => `https://www.google.com/search?q=flight+status+${encodeURIComponent(f)}`);
     setupQuickAction('qa-pickup-waze', s.pickup, (addr) => `https://waze.com/ul?q=${encodeURIComponent(addr)}`);
     setupQuickAction('qa-pickup-maps', s.pickup, (addr) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr)}`);
